@@ -57,7 +57,7 @@ myts.zip: $(PUB)
 clean:
 	rm -rf *lll myts *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/*.o
 
-TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session
+TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager
 
 tests/test_dynstring: tests/test_dynstring.c dynstring.c
 	$(CC) $(TEST_CFLAGS) -o $@ $^
@@ -95,6 +95,9 @@ tests/test_font_renderer: tests/test_font_renderer.cpp
 tests/test_terminal_session: tests/test_terminal_session.cpp
 	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
 
+tests/test_input_manager: tests/test_input_manager.cpp
+	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
+
 test: $(TEST_BINS)
 	@echo "Running complete test suite..."
 	@tests/test_dynstring
@@ -109,6 +112,7 @@ test: $(TEST_BINS)
 	@tests/test_eink_display
 	@tests/test_font_renderer
 	@tests/test_terminal_session
+	@tests/test_input_manager
 	@echo "All tests passed successfully!"
 
 test-asan:
@@ -125,6 +129,7 @@ test-asan:
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_eink_display tests/test_eink_display.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_font_renderer tests/test_font_renderer.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_terminal_session tests/test_terminal_session.cpp
+	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_input_manager tests/test_input_manager.cpp
 	@echo "Running test suite under AddressSanitizer..."
 	@tests/test_dynstring
 	@tests/test_config
@@ -138,6 +143,7 @@ test-asan:
 	@tests/test_eink_display
 	@tests/test_font_renderer
 	@tests/test_terminal_session
+	@tests/test_input_manager
 	@echo "All sanitizer tests passed!"
 
 # conversion
