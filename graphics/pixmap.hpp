@@ -58,6 +58,45 @@ public:
     }
 
     /**
+     * @brief Sets a 4-bit pixel value at (x, y).
+     * @param x Horizontal pixel coordinate.
+     * @param y Vertical pixel coordinate.
+     * @param color 4-bit pixel value (0x00 to 0x0F).
+     */
+    void set_pixel(int x, int y, uint8_t color) noexcept {
+        if (x < 0 || x >= width_ || y < 0 || y >= height_) {
+            return;
+        }
+        size_t byte_idx = static_cast<size_t>(y * stride_ + (x / 2));
+        uint8_t val = color & 0x0F;
+        if ((x & 1) == 0) {
+            // Even column: high nibble
+            storage_[byte_idx] = (storage_[byte_idx] & 0x0F) | (val << 4);
+        } else {
+            // Odd column: low nibble
+            storage_[byte_idx] = (storage_[byte_idx] & 0xF0) | val;
+        }
+    }
+
+    /**
+     * @brief Reads a 4-bit pixel value at (x, y).
+     * @param x Horizontal pixel coordinate.
+     * @param y Vertical pixel coordinate.
+     * @return 4-bit pixel value (0x00 to 0x0F), or 0 if out of bounds.
+     */
+    [[nodiscard]] uint8_t get_pixel(int x, int y) const noexcept {
+        if (x < 0 || x >= width_ || y < 0 || y >= height_) {
+            return 0;
+        }
+        size_t byte_idx = static_cast<size_t>(y * stride_ + (x / 2));
+        uint8_t byte_val = storage_[byte_idx];
+        if ((x & 1) == 0) {
+            return (byte_val >> 4) & 0x0F;
+        }
+        return byte_val & 0x0F;
+    }
+
+    /**
      * @brief Blits a source pixmap into this pixmap at destination point.
      * @param src Source pixmap view.
      * @param dest Top-left point where blit should occur.
