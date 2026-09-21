@@ -156,6 +156,17 @@ public:
     }
 
     /**
+     * @brief Continuously runs the event loop until stopped.
+     * @param poll_timeout_ms Max duration in ms per step iteration (default 50ms).
+     */
+    void run(int poll_timeout_ms = 50) {
+        running_ = true;
+        while (running_) {
+            step(poll_timeout_ms);
+        }
+    }
+
+    /**
      * @brief Signals the event loop to stop processing.
      */
     void stop() noexcept {

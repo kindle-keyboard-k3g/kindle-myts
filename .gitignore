@@ -15,4 +15,6 @@ tests/test_eink_display
 tests/test_font_renderer
 tests/test_terminal_session
 tests/test_input_manager
+tests/test_application
+myts-ng
 

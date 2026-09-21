@@ -55,9 +55,12 @@ myts.zip: $(PUB)
 	rm -r myts/ launchpad/
 
 clean:
-	rm -rf *lll myts *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/*.o
+	rm -rf *lll myts myts-ng *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/*.o
 
-TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager
+TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application
+
+myts-ng: main.cpp
+	$(CXX) $(CXXFLAGS) -I. -o $@ $^
 
 tests/test_dynstring: tests/test_dynstring.c dynstring.c
 	$(CC) $(TEST_CFLAGS) -o $@ $^
@@ -98,6 +101,9 @@ tests/test_terminal_session: tests/test_terminal_session.cpp
 tests/test_input_manager: tests/test_input_manager.cpp
 	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
 
+tests/test_application: tests/test_application.cpp
+	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
+
 test: $(TEST_BINS)
 	@echo "Running complete test suite..."
 	@tests/test_dynstring
@@ -113,6 +119,7 @@ test: $(TEST_BINS)
 	@tests/test_font_renderer
 	@tests/test_terminal_session
 	@tests/test_input_manager
+	@tests/test_application
 	@echo "All tests passed successfully!"
 
 test-asan:
@@ -130,6 +137,7 @@ test-asan:
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_font_renderer tests/test_font_renderer.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_terminal_session tests/test_terminal_session.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_input_manager tests/test_input_manager.cpp
+	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_application tests/test_application.cpp
 	@echo "Running test suite under AddressSanitizer..."
 	@tests/test_dynstring
 	@tests/test_config
@@ -144,6 +152,7 @@ test-asan:
 	@tests/test_font_renderer
 	@tests/test_terminal_session
 	@tests/test_input_manager
+	@tests/test_application
 	@echo "All sanitizer tests passed!"
 
 # conversion
