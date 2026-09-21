@@ -50,7 +50,7 @@ destructor, and private data.
 
 extern int verbose;
 #ifdef NODEBUG
-#define DBG(...)
+#define DBG(...) do { } while (0)
 #else
 #define DBG(level, format, ...)  do {                   \
         if (verbose >= level) {   \

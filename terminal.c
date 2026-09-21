@@ -283,9 +283,10 @@ static int do_csi(struct my_sess *sh, char **s, int curcol)
 	/* XXX parse a variable number of args */
 	n = sscanf(base, "%d;%d;%d", &a1, &a2, &a3);
 	/* print potentially invalid commands */
-	if (!index("ABCDGHJKPXdghlmrt", cmd))
+	if (!index("ABCDGHJKPXdghlmrt", cmd)) {
 	    DBG(0, "ANSI sequence (%d)(%d) %d %d %d cmd %d( ESC-[%.*s)\n",
-		n, mark, a1, a2, a3, cmd, (parm+1 - base), base);	
+		n, mark, a1, a2, a3, cmd, (int)(parm+1 - base), base);
+	}
 	switch (cmd) {
 	case '@': // insert character
 		{

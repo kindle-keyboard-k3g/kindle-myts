@@ -48,7 +48,7 @@ extern int verbose;
 
 #ifndef DBG
 #ifdef NODEBUG
-#define DBG(...)
+#define DBG(...) do { } while (0)
 #else
 #define DBG(level, format, ...)  do {                   \
         if (verbose >= level) \
@@ -274,11 +274,13 @@ struct config *cfg_read(const char *path, const char *base,
 	if ( (fd = open(path, O_RDONLY)) >= 0)
 		goto good;
 	if (path[0] != '.' && path[0] != '/') { // try alternate location
-		char *p;
-		asprintf(&p, "%s/%s", base, path);
-		fd = open(p, O_RDONLY);
-		if ( fd >= 0)
-			goto good;
+		char *p = NULL;
+		if (asprintf(&p, "%s/%s", base, path) >= 0 && p) {
+			fd = open(p, O_RDONLY);
+			free(p);
+			if ( fd >= 0)
+				goto good;
+		}
 	}
 	DBG(0, "error opening %s\n", path);
 	return old;

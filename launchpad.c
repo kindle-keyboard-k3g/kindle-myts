@@ -235,7 +235,7 @@ static struct key_entry *lookup_key(const char *key, int len)
 		key = "Space";
 	}
 	l.name = (char *)key;
-	l.namelen = len ? len : strlen(key);
+	l.namelen = len ? (size_t)len : strlen(key);
 	k = bsearch(&l, lps->e, lps->nentries, sizeof(l), ecmp);
 	if (!k)
 		DBG(0, "entry '%.*s' not found\n", len, key);
@@ -565,6 +565,7 @@ static void process_term(struct input_event *ev, int mode)
 	static int langlock = 0;
 	static int home = 0;
 	(void) home;
+	(void) mode;
     static int help = 0;
 
 	DBG(1, "process event %d %d e %p %.*s for terminal\n",
@@ -892,11 +893,13 @@ static void process_event(struct input_event *ev, int mode)
 
 static void hup_handler(int x)
 {
+	(void)x;
 	lps->got_signal = 1 ; /* reinit */
 }
 
 static void int_handler(int x)
 {
+	(void)x;
 	lps->got_signal = 2 ; /* exit */
 }
 
@@ -1008,8 +1011,10 @@ int launchpad_start(void);
  */
 int handle_launchpad(void *_s, struct cb_args *a)
 {
+	(void)_s;
 	int fds[3] = { lps->kpad.fdin, lps->fw.fdin, lps->vol.fdin };
-	int i, j, ev;
+	size_t i, j;
+	int ev;
 
 	DBG(2, "fds %d %d %d\n", lps->kpad.fdin, lps->fw.fdin, lps->vol.fdin);
 	DBG(2, "term %p sh %p \n",
