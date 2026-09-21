@@ -208,7 +208,7 @@ dsprintf(dynstr *buf, const char *fmt, ...)
  */
 int ds_append(dynstr *buf, const void *d, int len)
 {
-	int need;
+	size_t need;
 	if (buf == NULL)
 		return 0;
 	if (*buf == NULL)
@@ -216,20 +216,20 @@ int ds_append(dynstr *buf, const void *d, int len)
 	if (*buf == NULL)
 		return DYNSTR_BUILD_FAILED;
 	if (len < 0) {  /* the 'truncate' */
-		need = -len + 1;
+		need = (size_t)(-len) + 1;
 	} else {
-		need = (*buf)->used + len + 1;
+		need = (*buf)->used + (size_t)len + 1;
 	}
 	if (need > (*buf)->len) {
 		if (dynstr_make_space(buf, need))
 			return DYNSTR_BUILD_FAILED;
 	}
 	if (len < 0) {
-		(*buf)->used = -len;
+		(*buf)->used = (size_t)(-len);
 	} else {
 		if (d)
 			bcopy(d, (*buf)->str + (*buf)->used, len);
-		(*buf)->used += len;
+		(*buf)->used += (size_t)len;
 	}
 	(*buf)->str[(*buf)->used] = '\0';
 	return 0;
@@ -237,8 +237,10 @@ int ds_append(dynstr *buf, const void *d, int len)
 
 int ds_truncate(dynstr *buf, int want)
 {
-	if (buf && *buf && ds_readonly(*buf) && want <= (*buf)->used) {
-		(*buf)->used = want;
+	if (want < 0)
+		return -1;
+	if (buf && *buf && ds_readonly(*buf) && (size_t)want <= (*buf)->used) {
+		(*buf)->used = (size_t)want;
 		return 0;
 	}
 	return ds_append(buf, NULL, -want);
@@ -257,9 +259,9 @@ int ds_adjust(dynstr *buf, int i, int recsize)
 /* remove the initial n bytes from the string, shifting up the content */
 int ds_shift(dynstr d, int n)
 {
-	if (!d || n < 0 || n > d->used)
+	if (!d || n < 0 || (size_t)n > d->used)
 		return -1;
-	d->used -= n;	// residual size
+	d->used -= (size_t)n;	// residual size
 	if (ds_readonly(d)) {
 		/* for readonly string, shift instead of move */
 		const char **pp = (const char **)&(d->str);
@@ -268,15 +270,15 @@ int ds_shift(dynstr d, int n)
 		bcopy(d->str + n, d->str, d->used);
 		d->str[d->used] = '\0';
 	}
-	return d->used;
+	return (int)d->used;
 }
 
 __attribute__((format (printf, 4, 0)))
 static int __dynstr_helper(dynstr *buf, size_t max_len,
         int append, const char *fmt, va_list ap)
 {
-        int res, need;
-        int offset;
+        int res;
+        size_t need, offset;
 	if (buf == NULL)
 		return 0;
 	if (*buf == NULL)
@@ -285,15 +287,15 @@ static int __dynstr_helper(dynstr *buf, size_t max_len,
 		return DYNSTR_BUILD_FAILED;
 	offset = (append && (*buf)->len) ? (*buf)->used : 0;
 
-        if (max_len < 0)
-                max_len = (*buf)->len;  /* don't exceed the allocated space */
         /*
          * Ask vsnprintf how much space we need. Remember that vsnprintf
          * does not count the final '\0' so we must add 1.
          */
         res = vsnprintf((*buf)->str + offset, (*buf)->len - offset, fmt, ap);
+        if (res < 0)
+                return DYNSTR_BUILD_FAILED;
 
-        need = res + offset + 1;
+        need = (size_t)res + offset + 1;
         /*
          * If there is not enough space and we are below the max length,
          * reallocate the buffer and return a message telling to retry.
@@ -312,7 +314,7 @@ static int __dynstr_helper(dynstr *buf, size_t max_len,
                 return DYNSTR_BUILD_RETRY;
         }
         /* update space used, keep in mind the truncation */
-        (*buf)->used = (res + offset > (*buf)->len) ? (*buf)->len : res + offset;
+        (*buf)->used = ((size_t)res + offset > (*buf)->len) ? (*buf)->len : (size_t)res + offset;
 
         return res;
 }

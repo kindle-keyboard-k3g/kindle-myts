@@ -65,7 +65,10 @@ int init_font(const char *cp, const char *font, int fontheight, int fontwidth) {
         bytesperchar=1;
         cpf=open(cp,O_RDONLY);
         if(cpf<0) return -1;
-        read(cpf,cpb,512);
+        if (read(cpf,cpb,512) < 0) {
+            close(cpf);
+            return -1;
+        }
         for (i=0;i<256;i++) {
             DBG(3,"CP Table %i = %04x\n", i, cpb[i]);
         }
@@ -78,17 +81,19 @@ int init_font(const char *cp, const char *font, int fontheight, int fontwidth) {
     quadbits=malloc(1024);
     calcquadbits();
     charsdone=0;
-    char formatstring[200] = "%04x:%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x"; 
+    char formatstring[200] = "%04x:%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x";
     if(fontwidth>8) {
-        int i;
-        for(i=7;i<strlen(formatstring);i+=4)formatstring[i]='4';
+        size_t fmt_len = strlen(formatstring);
+        size_t fi;
+        for(fi=7;fi<fmt_len;fi+=4)formatstring[fi]='4';
     }
     while(!feof(fontf) && charsdone<charstodo){
         char line[1024];
         int i,j;
         unsigned int pix[fontheight];
 
-        fgets(line,1022,fontf);
+        if (fgets(line,1022,fontf) == NULL)
+            break;
         i=sscanf(line, formatstring,
                 &j, 
                 &pix[0], &pix[1], &pix[2], &pix[3],

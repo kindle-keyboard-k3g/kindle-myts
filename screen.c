@@ -129,6 +129,7 @@ int fb_char_at(fbscreen_t *fb, const struct font *font,
 
 const struct font *fb_getfont(const char *name)
 {
+	(void)name;
 	return &font_pixmap;
 }
 
@@ -148,12 +149,12 @@ int get_char_pixmap(const struct font *font, int code, pixmap_t *ppx)
         ppx->height = font_pixmap.height ;
         ppx->bpp = font_pixmap.bpp ;
         if(bytesperchar==2) {
-            uint32_t *b=(uint32_t*)font->pixmap;
+            void **b=(void **)font->pixmap;
             ppx->surface=(unsigned char *)b[code];
             if (!ppx->surface) ppx->surface=(unsigned char *)b[0xfffd];
             if (!ppx->surface) ppx->surface=(unsigned char *)b[0xbf];
             if (!ppx->surface) ppx->surface=(unsigned char *)b[0x20];
-        } else 
+        } else
             ppx->surface = (font->pixmap + (code-font->code_first)*byteschar) ;
         return code ;
 }

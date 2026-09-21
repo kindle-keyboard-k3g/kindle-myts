@@ -1,9 +1,12 @@
-# Compile this on an old armv6 raspberry pi.
+# Compile this on an old armv6 raspberry pi or cross-compiler.
 
-CC=musl-gcc
-STRIP=strip
-CFLAGS = -static -Os -Wall -Werror
-CFLAGS += -isystem /usr/lib/musl/include -isystem /usr/include
+CC ?= gcc
+STRIP ?= strip
+CFLAGS ?= -Os -Wall -Wextra
+HOST_CFLAGS = -Wall -Wextra -g3 -O0 -I. -DNODEBUG
+TEST_CFLAGS = $(HOST_CFLAGS)
+ASAN_CFLAGS = $(HOST_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
+
 # files to publish
 PUB= $(HEADERS) $(ALLSRCS) Makefile README myts myts.ini keydefs.ini $(TABLES)
 
@@ -43,7 +46,36 @@ myts.zip: $(PUB)
 	rm -r myts/ launchpad/
 
 clean:
-	rm -rf *lll myts *.o *.core *.table myts.zip
+	rm -rf *lll myts *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/*.o
+
+TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop
+
+tests/test_dynstring: tests/test_dynstring.c dynstring.c
+	$(CC) $(TEST_CFLAGS) -o $@ $^
+
+tests/test_config: tests/test_config.c config.c
+	$(CC) $(TEST_CFLAGS) -o $@ $^
+
+tests/test_pixop: tests/test_pixop.c pixop.c
+	$(CC) $(TEST_CFLAGS) -o $@ $^
+
+test: $(TEST_BINS)
+	@echo "Running test suite..."
+	@tests/test_dynstring
+	@tests/test_config
+	@tests/test_pixop
+	@echo "All tests passed successfully!"
+
+test-asan:
+	@echo "Building with AddressSanitizer..."
+	$(CC) $(ASAN_CFLAGS) -o tests/test_dynstring tests/test_dynstring.c dynstring.c
+	$(CC) $(ASAN_CFLAGS) -o tests/test_config tests/test_config.c config.c
+	$(CC) $(ASAN_CFLAGS) -o tests/test_pixop tests/test_pixop.c pixop.c
+	@echo "Running test suite under AddressSanitizer..."
+	@tests/test_dynstring
+	@tests/test_config
+	@tests/test_pixop
+	@echo "All sanitizer tests passed!"
 
 # conversion
 # hexdump -e '"\n\t" 8/1 "%3d, "'

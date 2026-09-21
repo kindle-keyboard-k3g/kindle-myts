@@ -39,6 +39,8 @@
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
+#include <stdint.h>
+
 struct entry {
 	struct entry *next;
 	char *key;		/* pointer to key name */
