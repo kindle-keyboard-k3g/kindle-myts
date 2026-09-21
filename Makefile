@@ -17,10 +17,7 @@ ASAN_CFLAGS = $(HOST_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointe
 ASAN_CXXFLAGS = $(HOST_CXXFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
 
 # files to publish
-PUB= $(HEADERS) $(ALLSRCS) Makefile README myts myts.ini keydefs.ini $(TABLES)
-
-CODEPAGES = CP437 CP1255
-TABLES = $(patsubst %,%.table,$(CODEPAGES))
+PUB= $(HEADERS) $(ALLSRCS) Makefile README.md myts myts-ng myts.ini keydefs.ini
 
 HEADERS = config.h dynstring.h font.h myts.h pixop.h screen.h terminal.h
 HEADERS += linux/
@@ -44,15 +41,14 @@ terminal.o: terminal.h
 tgz: $(PUB)
 	tar cvzf /tmp/kiterm.tgz --exclude .svn $(PUB)
 
-myts.zip: $(PUB)
-	rm -f myts.zip
-	mkdir -p myts
-	mkdir -p launchpad
-	cp myts.l.ini launchpad/
-	cp profile myts.sh myts.ini *.hex *.table README keymap keydefs.ini bdf2hex about.txt myts/
-	cp myts myts/myts
-	zip -r myts.zip launchpad myts
-	rm -r myts/ launchpad/
+myts.zip: $(PUB) myts-ng
+	rm -rf myts.zip myts-bundle
+	mkdir -p myts-bundle
+	cp myts.ini *.hex README.md LICENSE keydefs.ini bdf2hex myts-bundle/
+	cp myts myts-bundle/myts
+	cp myts-ng myts-bundle/myts-ng
+	(cd myts-bundle && zip -r ../myts.zip *)
+	rm -rf myts-bundle
 
 clean:
 	rm -rf *lll myts myts-ng *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/*.o
