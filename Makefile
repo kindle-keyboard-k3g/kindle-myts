@@ -55,9 +55,9 @@ myts.zip: $(PUB)
 	rm -r myts/ launchpad/
 
 clean:
-	rm -rf *lll myts *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/*.o
+	rm -rf *lll myts *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/*.o
 
-TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi
+TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display
 
 tests/test_dynstring: tests/test_dynstring.c dynstring.c
 	$(CC) $(TEST_CFLAGS) -o $@ $^
@@ -83,6 +83,12 @@ tests/test_modern_config: tests/test_modern_config.cpp
 tests/test_ansi: tests/test_ansi.cpp
 	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
 
+tests/test_event_loop: tests/test_event_loop.cpp
+	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
+
+tests/test_eink_display: tests/test_eink_display.cpp
+	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
+
 test: $(TEST_BINS)
 	@echo "Running complete test suite..."
 	@tests/test_dynstring
@@ -93,6 +99,8 @@ test: $(TEST_BINS)
 	@tests/test_pixmap
 	@tests/test_modern_config
 	@tests/test_ansi
+	@tests/test_event_loop
+	@tests/test_eink_display
 	@echo "All tests passed successfully!"
 
 test-asan:
@@ -105,6 +113,8 @@ test-asan:
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_pixmap tests/test_pixmap.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_modern_config tests/test_modern_config.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_ansi tests/test_ansi.cpp
+	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_event_loop tests/test_event_loop.cpp
+	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_eink_display tests/test_eink_display.cpp
 	@echo "Running test suite under AddressSanitizer..."
 	@tests/test_dynstring
 	@tests/test_config
@@ -114,6 +124,8 @@ test-asan:
 	@tests/test_pixmap
 	@tests/test_modern_config
 	@tests/test_ansi
+	@tests/test_event_loop
+	@tests/test_eink_display
 	@echo "All sanitizer tests passed!"
 
 # conversion
