@@ -87,3 +87,28 @@ Expected output:
 === Starting Test Suite: tests/test_application.cpp === ... PASSED
 All sanitizer tests passed!
 ```
+
+---
+
+## Deployment to Kindle Device
+
+### Automated Deployment (`make deploy` / `scripts/update-kindle.sh`)
+
+Deploying and updating the terminal on a physical Kindle device (Linux or WSL) is fully automated and idempotent:
+
+```bash
+# Auto-detects Kindle via SSH or mounted USB storage:
+make deploy
+
+# Or run the script directly with options:
+./scripts/update-kindle.sh --ssh kindle      # SSH alias
+./scripts/update-kindle.sh --ssh 192.168.2.2 # Direct USBNetwork IP
+./scripts/update-kindle.sh --usb /mnt/e      # USB drive mount (WSL / Linux)
+./scripts/update-kindle.sh --reset-config    # Overwrite myts.ini with defaults
+```
+
+Key features:
+- Safely terminates running sessions prior to transfer to avoid `ETXTBSY` file-busy errors.
+- Preserves existing custom user configurations in `/mnt/us/myts/myts.ini`.
+- Installs Launchpad bindings (`Shift + T, T`) to `/mnt/us/launchpad/myts.ini` and reloads the daemon.
+- Automatically executes a post-deploy `--dry-run` sanity check on the device.

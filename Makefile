@@ -218,3 +218,10 @@ test-asan:
 
 %.table: codepage.sh
 	./codepage.sh $*
+
+.PHONY: deploy update
+
+deploy:
+	@./scripts/update-kindle.sh $(DEPLOY_ARGS)
+
+update: deploy

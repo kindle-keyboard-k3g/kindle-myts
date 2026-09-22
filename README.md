@@ -95,30 +95,44 @@ kindle-myts/
 2. **Launchpad:** Install the [Kindle Launchpad](https://wiki.mobileread.com/wiki/Launchpad) hack.
 3. **USB Networking / SSH (Recommended):** Helpful for transferring files and running shell commands.
 
-### Installation Steps
+### Automated Installation & Update (Linux & WSL)
 
-1. **Download or Build:**
-   Download the latest release zip (`myts.zip`) or build it using `make myts.zip`. When cross-compiling, it packages the modern static ARMv6 binary (`myts-ng`).
+Connect your Kindle via USB (either with USBNetwork active or mounted as a USB drive) and run:
 
-2. **Copy Launchpad Configuration:**
-   Mount your Kindle via USB and copy the Launchpad shortcut configuration into the `launchpad/` folder on your Kindle's USB partition:
-   ```bash
-   cp myts.l.ini /path/to/kindle/launchpad/myts.ini
-   ```
-   *(Note: `myts.zip` already bundles `launchpad/myts.ini` for one-step extraction).*
+```bash
+# 1. One-command automated deployment (auto-detects SSH or mounted USB storage):
+make deploy
 
-3. **Deploy the `myts` Directory:**
-   Copy the `myts` folder (containing the default `myts` launcher wrapper, `myts-ng` native binary, `launch_kindle.sh`, `ter-u12n.hex`, and config files) into `/mnt/us/myts/` (the root of the USB user store):
-   ```bash
-   mkdir -p /path/to/kindle/myts
-   cp -r myts/* /path/to/kindle/myts/
-   ```
+# Or run the script directly:
+./scripts/update-kindle.sh
+```
 
-4. **Reload Launchpad:**
-   Eject your Kindle safely from the computer. Press the following key sequence on the Kindle physical keyboard to restart Launchpad:
-   ```
-   Shift Shift Space
-   ```
+#### Specific Deployment Modes
+
+```bash
+# Deploy over SSH using your ~/.ssh/config 'kindle' alias:
+./scripts/update-kindle.sh --ssh kindle
+
+# Deploy over SSH directly using Kindle USBNetwork IP:
+./scripts/update-kindle.sh --ssh 192.168.2.2
+
+# Deploy to a Kindle mounted as a USB drive (e.g. drive E: in WSL):
+./scripts/update-kindle.sh --usb /mnt/e
+
+# Reset myts.ini to defaults during deployment:
+./scripts/update-kindle.sh --reset-config
+```
+
+The script is **completely idempotent**:
+- Stops active terminal sessions on the Kindle to avoid file-locking (`ETXTBSY`) errors.
+- Automatically preserves existing custom `myts.ini` configurations.
+- Backs up the legacy binary to `myts-legacy` without overwriting earlier backups.
+- Updates `/mnt/us/launchpad/myts.ini` and triggers a Launchpad reload (`killall -HUP launchpad`).
+- Executes a post-deployment sanity test (`myts --dry-run`).
+
+---
+
+### Manual Installation Steps (Alternative)
 
 ---
 
