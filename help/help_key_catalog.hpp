@@ -1,0 +1,107 @@
+#ifndef MYTS_HELP_HELP_KEY_CATALOG_HPP
+#define MYTS_HELP_HELP_KEY_CATALOG_HPP
+
+#include "input/key_catalog.hpp"
+#include <cstddef>
+#include <cstdint>
+
+namespace myts {
+namespace help {
+
+struct PhysicalKey {
+    uint16_t code;
+    char primary;
+    char shift;
+    const char* label;
+};
+
+struct SymEntry {
+    char key;
+    char symbol;
+    const char* desc;
+};
+
+struct FnEntry {
+    char key;
+    const char* f_label;
+    const char* desc;
+};
+
+class HelpKeyCatalog {
+public:
+    static constexpr size_t ROW1_COUNT = 10;
+    static constexpr size_t ROW2_COUNT = 10;
+    static constexpr size_t ROW3_COUNT = 10;
+    static constexpr size_t SYM_COUNT = 28;
+    static constexpr size_t FN_COUNT = 12;
+
+    static constexpr PhysicalKey ROW1[ROW1_COUNT] = {
+        {16, 'Q', '!', "Q"}, {17, 'W', '@', "W"}, {18, 'E', '#', "E"},
+        {19, 'R', '$', "R"}, {20, 'T', '%', "T"}, {21, 'Y', '^', "Y"},
+        {22, 'U', '&', "U"}, {23, 'I', '*', "I"}, {24, 'O', '(', "O"},
+        {25, 'P', ')', "P"}
+    };
+
+    static constexpr PhysicalKey ROW2[ROW2_COUNT] = {
+        {30, 'A', '\0', "A"}, {31, 'S', '\0', "S"}, {32, 'D', '\0', "D"},
+        {33, 'F', '\0', "F"}, {34, 'G', '\0', "G"}, {35, 'H', '\0', "H"},
+        {36, 'J', '\0', "J"}, {37, 'K', '\0', "K"}, {38, 'L', '\0', "L"},
+        {input::KeyCatalog::KEY_DEL, '<', '\0', "DEL"}
+    };
+
+    static constexpr PhysicalKey ROW3[ROW3_COUNT] = {
+        {44, 'Z', '\0', "Z"}, {45, 'X', '\0', "X"}, {46, 'C', '\0', "C"},
+        {47, 'V', '\0', "V"}, {48, 'B', '\0', "B"}, {49, 'N', '\0', "N"},
+        {50, 'M', '\0', "M"}, {52, '.', '>', "."}, {53, '/', '?', "/"},
+        {input::KeyCatalog::KEY_ENTER, '\r', '\0', "RET"}
+    };
+
+    static constexpr SymEntry SYM_ENTRIES[SYM_COUNT] = {
+        {'Q', '!', "Exclamation"}, {'W', '@', "At sign"},
+        {'E', '#', "Hash / Pound"}, {'R', '$', "Dollar"},
+        {'T', '%', "Percent"}, {'Y', '^', "Caret"},
+        {'U', '&', "Ampersand"}, {'I', '*', "Asterisk"},
+        {'O', '(', "Left Paren"}, {'P', ')', "Right Paren"},
+        {'A', '+', "Plus"}, {'S', '-', "Minus"},
+        {'D', '_', "Underscore"}, {'F', '=', "Equals"},
+        {'G', '[', "Left Bracket"}, {'H', ']', "Right Bracket"},
+        {'J', '{', "Left Brace"}, {'K', '}', "Right Brace"},
+        {'L', '\\', "Backslash"},
+        {'Z', '|', "Pipe"}, {'X', '~', "Tilde"},
+        {'C', '`', "Backtick"}, {'V', '\'', "Single Quote"},
+        {'B', '\"', "Double Quote"}, {'N', '<', "Less Than"},
+        {'M', '>', "Greater Than"}, {'.', ';', "Semicolon"},
+        {'/', ':', "Colon"}
+    };
+
+    static constexpr FnEntry FN_ENTRIES[FN_COUNT] = {
+        {'Q', "F1", "VT Function 1"}, {'W', "F2", "VT Function 2"},
+        {'E', "F3", "VT Function 3"}, {'R', "F4", "VT Function 4"},
+        {'T', "F5", "VT Function 5"}, {'Y', "F6", "VT Function 6"},
+        {'U', "F7", "VT Function 7"}, {'I', "F8", "VT Function 8"},
+        {'O', "F9", "VT Function 9"}, {'P', "F10", "VT Function 10"},
+        {'A', "F11", "VT Function 11"}, {'S', "F12", "VT Function 12"}
+    };
+
+    [[nodiscard]] static const char* keycode_to_name(uint16_t code) noexcept {
+        if (code == input::KeyCatalog::KEY_MENU) return "Menu";
+        if (input::KeyCatalog::is_back_key(code)) return "Back";
+        if (code == input::KeyCatalog::KEY_PAGE_FORWARD) return "Right<";
+        if (code == input::KeyCatalog::KEY_PAGE_TURN_K3 || code == input::KeyCatalog::KEY_PAGE_TURN_DX) return "Right>";
+        if (code == input::KeyCatalog::KEY_PAGE_BACK_K3 || code == input::KeyCatalog::KEY_PAGE_BACK_DX) return "Left<";
+        if (code == input::KeyCatalog::KEY_FIVEWAY_UP) return "Up";
+        if (code == input::KeyCatalog::KEY_FIVEWAY_DOWN) return "Down";
+        if (code == input::KeyCatalog::KEY_FIVEWAY_LEFT) return "Left";
+        if (code == input::KeyCatalog::KEY_FIVEWAY_RIGHT) return "Right";
+        if (input::KeyCatalog::is_select_key(code)) return "Select";
+        if (code == input::KeyCatalog::KEY_ENTER) return "Enter";
+        if (code == input::KeyCatalog::KEY_DEL) return "Del";
+        if (code == input::KeyCatalog::KEY_SPACE) return "Space";
+        return nullptr;
+    }
+};
+
+} // namespace help
+} // namespace myts
+
+#endif // MYTS_HELP_HELP_KEY_CATALOG_HPP
