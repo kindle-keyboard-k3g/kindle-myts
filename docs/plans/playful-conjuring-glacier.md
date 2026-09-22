@@ -126,30 +126,78 @@ Static/constexpr definitions shared across InputManager and HelpScreen:
 
 ---
 
-## 5. Verification & Testing Plan
+## 6. Implementation Tasks (TDD / SDD)
 
-1. **Unit Test Suites**:
-   - `tests/test_help_command_tracker.cpp`:
-     - Verifies exact `help\r` trigger.
-     - Verifies non-triggers: `helper\r`, `echo help\r`, `ahelp\r`.
-     - Verifies backspace, control sequences, and buffer overflow safety.
-   - `tests/test_help_navigation.cpp`:
-     - Verifies default page is `Overview`.
-     - Verifies numeric key navigation (`1`..`4`) and 5-way D-Pad wrapping (Left/Right).
-     - Verifies exit triggers (<kbd>q</kbd>, <kbd>Enter</kbd>, <kbd>Back</kbd>, <kbd>Right></kbd>, <kbd>Menu</kbd>).
-   - `tests/test_help_renderer.cpp`:
-     - Verifies all 4 pages render without bounds violations.
-     - Verifies `render_full()` and `render_delta()` return valid clipped Rects.
-     - Verifies zero memory allocations during rendering.
-   - `tests/test_application.cpp`:
-     - Verifies modal help lifecycle: enter via Menu key, suppression of PTY writes, and full screen restoration on exit.
+### Task 1: Core Domain Types and Key Catalog
+- **Files**:
+  - `input/key_catalog.hpp`
+  - `help/help_types.hpp`
+  - `help/help_key_catalog.hpp`
+- **Steps**:
+  1. Write failing test in `tests/test_help_navigation.cpp` checking KeyCatalog keycodes, physical row layouts, and Sym/Fn layer entries.
+  2. Run `make tests/test_help_navigation && tests/test_help_navigation`. Expected: compile/test failure.
+  3. Implement `input/key_catalog.hpp` (Kindle hardware keycodes and modifier bitmasks).
+  4. Implement `help/help_types.hpp` (HelpPage, HelpRoute, KeySnapshot, HelpNavigationState).
+  5. Implement `help/help_key_catalog.hpp` (constexpr physical rows, Sym map, Fn map, label lookups).
+  6. Run test suite. Expected: PASS.
+  7. Commit: `feat(help): define domain types and physical key catalog`.
 
-2. **Sanitizer Verification**:
-   - Run `make test-asan` covering AddressSanitizer and UndefinedBehaviorSanitizer across all suites.
+### Task 2: Command Tracker (`help/help_command_tracker.hpp`)
+- **Files**:
+  - `help/help_command_tracker.hpp`
+  - `tests/test_help_command_tracker.cpp`
+- **Steps**:
+  1. Write failing tests in `tests/test_help_command_tracker.cpp` for exact `help\r` trigger, non-triggers (`helper\r`, `ahelp\r`, `echo help\r`), backspace handling, control sequence reset, and buffer boundary.
+  2. Run `make tests/test_help_command_tracker && tests/test_help_command_tracker`. Expected: compile failure.
+  3. Implement `help/help_command_tracker.hpp` with fixed 8-byte stack buffer and zero allocations.
+  4. Run test suite. Expected: PASS.
+  5. Commit: `feat(help): implement zero-allocation help command tracker`.
 
-3. **Kindle Hardware / Cross-Compilation Verification**:
-   - Cross-compile with `armv6-linux-musleabi-g++` (`make myts-ng-kindle`).
-   - Run `./scripts/update-kindle.sh --ssh kindle` to deploy to connected device.
-   - Verify typing `help` in terminal opens help screen on device.
-   - Verify pressing `Menu` toggles help screen.
-   - Verify navigating pages with 5-way D-Pad and exiting with `q` or `Back`.
+### Task 3: Help Screen State and Controller (`help/help_screen.hpp`, `help/help_controller.hpp`)
+- **Files**:
+  - `help/help_screen.hpp`
+  - `help/help_controller.hpp`
+  - `tests/test_help_navigation.cpp`
+- **Steps**:
+  1. Write failing tests in `tests/test_help_navigation.cpp` for modal open/close, default page Overview, numeric navigation (1..4), 5-way D-Pad navigation with wrapping, exit triggers (`q`, `Enter`, `Back`, `Right>`, `Menu`), and input routing (`before_terminal_write`, `after_terminal_write`).
+  2. Run `make tests/test_help_navigation && tests/test_help_navigation`. Expected: compile failure.
+  3. Implement `help/help_screen.hpp` (≤2 members: `active_`, `nav_`).
+  4. Implement `help/help_controller.hpp` (≤2 members: `screen_`, `tracker_`).
+  5. Run test suite. Expected: PASS.
+  6. Commit: `feat(help): implement help screen state container and controller`.
+
+### Task 4: Stateless Help Renderer (`help/help_renderer.hpp`)
+- **Files**:
+  - `help/help_renderer.hpp`
+  - `tests/test_help_renderer.cpp`
+- **Steps**:
+  1. Write failing tests in `tests/test_help_renderer.cpp` checking `render_full()` across all 4 pages (Overview, Keypad, Sym, Fn) and `render_delta()` for active key updates, verifying clipping rect bounds and zero heap allocation.
+  2. Run `make tests/test_help_renderer && tests/test_help_renderer`. Expected: compile failure.
+  3. Implement `help/help_renderer.hpp` using `graphics::FontRenderer` and `graphics::OwnedPixmap`.
+  4. Run test suite. Expected: PASS.
+  5. Commit: `feat(help): implement stateless full and delta help renderer`.
+
+### Task 5: Terminal Session and Application Integration
+- **Files**:
+  - `terminal/terminal_session.hpp`
+  - `app/application.hpp`
+  - `tests/test_application.cpp`
+  - `Makefile`
+- **Steps**:
+  1. Add `mark_all_dirty()` to `terminal/terminal_session.hpp`.
+  2. Write failing integration tests in `tests/test_application.cpp` verifying help toggling via Menu key, PTY input suppression while help is active, and terminal canvas restoration upon exit.
+  3. Integrate `HelpController` into `app/application.hpp`:
+     - Intercept inputs before PTY write.
+     - Detect typed `help\r` after PTY write.
+     - Suppress canvas redraw on PTY read while help is active.
+     - Render help screen and restore terminal on exit with full e-ink refresh.
+  4. Update `Makefile` to include help headers and new test targets.
+  5. Run `make test`. Expected: all test suites PASS.
+  6. Commit: `feat(help): integrate help controller and display restore in application`.
+
+### Task 6: Full Suite, ASan Verification, and Kindle Cross-Compilation
+- **Steps**:
+  1. Run `make test-asan` to verify zero memory leaks or bounds violations across all suites.
+  2. Run `make myts-ng-kindle` to verify cross-compilation with `armv6-linux-musleabi-g++`.
+  3. Commit: `chore(help): verify sanitizers and arm cross-compilation`.
+
