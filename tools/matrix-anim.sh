@@ -13,11 +13,19 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Check if native compiled binary is available
 if [ -x "$SCRIPT_DIR/matrix" ]; then
-    exec "$SCRIPT_DIR/matrix" "$@"
+    if [ $# -eq 0 ]; then
+        exec "$SCRIPT_DIR/matrix" --frames 150 --delay 80
+    else
+        exec "$SCRIPT_DIR/matrix" "$@"
+    fi
 fi
 
 if [ -x "$SCRIPT_DIR/matrix-kindle" ]; then
-    exec "$SCRIPT_DIR/matrix-kindle" "$@"
+    if [ $# -eq 0 ]; then
+        exec "$SCRIPT_DIR/matrix-kindle" --frames 150 --delay 80
+    else
+        exec "$SCRIPT_DIR/matrix-kindle" "$@"
+    fi
 fi
 
 # Fallback: Pure POSIX shell implementation

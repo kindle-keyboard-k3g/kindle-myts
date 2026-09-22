@@ -49,6 +49,7 @@ static inline char random_glyph(void) {
 }
 
 static void init_drop(Drop* d, int rows, int cols) {
+    (void)rows;
     d->col = 1 + (rand() % cols);
     d->head_y = -(rand() % 10); // Start slightly above screen for staggered arrival
     d->len = 4 + (rand() % 10); // Trail length 4..13
