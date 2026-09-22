@@ -69,7 +69,7 @@ myts.zip: myts myts-ng myts.l.ini
 	rm -rf myts-bundle
 
 clean:
-	rm -rf *lll myts myts-ng myts-dbg myts-ng-dbg *.o *.core *.table myts.zip tools/matrix tools/matrix-kindle tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay tests/test_help_command_tracker tests/test_help_navigation tests/test_help_renderer tests/*.o
+	rm -rf *lll myts myts-ng myts-dbg myts-ng-dbg myts-ng-kindle myts-ng-kindle-dbg *.o *.core *.table myts.zip tools/matrix tools/matrix-kindle tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay tests/test_help_command_tracker tests/test_help_navigation tests/test_help_renderer tests/*.o
 
 TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay tests/test_help_command_tracker tests/test_help_navigation tests/test_help_renderer
 
