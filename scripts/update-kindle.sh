@@ -177,6 +177,7 @@ resolve_binaries() {
     # Check for required assets
     for required_file in \
         "$REPO_DIR/tools/myts" \
+        "$REPO_DIR/tools/myts.sh" \
         "$REPO_DIR/tools/launch_kindle.sh" \
         "$REPO_DIR/myts.l.ini" \
         "$REPO_DIR/myts.ini" \
@@ -284,6 +285,7 @@ deploy_ssh() {
     # Step A: Stop active myts sessions to avoid ETXTBSY ("Text file busy")
     log_info "Stopping any active myts processes on Kindle..."
     ssh -p "$port" "$target" "killall -9 myts myts-ng matrix 2>/dev/null || true"
+    ssh -p "$port" "$target" "rm -f /var/tmp/myts.special 2>/dev/null || true"
 
     # Step B: Create directories
     log_info "Ensuring target directories exist (/mnt/us/myts, /mnt/us/launchpad)..."
@@ -296,6 +298,7 @@ deploy_ssh() {
     # Step D: Transfer core executables and scripts
     log_info "Copying modern wrapper and native binaries..."
     scp -P "$port" "$REPO_DIR/tools/myts" "$target:/mnt/us/myts/myts"
+    scp -P "$port" "$REPO_DIR/tools/myts.sh" "$target:/mnt/us/myts/myts.sh"
     scp -P "$port" "$MYTS_NG_BIN" "$target:/mnt/us/myts/myts-ng"
     scp -P "$port" "$MYTS_NG_BIN" "$target:/mnt/us/myts/myts-ng-kindle"
     scp -P "$port" "$REPO_DIR/tools/launch_kindle.sh" "$target:/mnt/us/myts/launch_kindle.sh"
@@ -303,6 +306,7 @@ deploy_ssh() {
     # Step E: Transfer Launchpad configuration
     log_info "Updating Launchpad configuration (/mnt/us/launchpad/myts.ini)..."
     scp -P "$port" "$REPO_DIR/myts.l.ini" "$target:/mnt/us/launchpad/myts.ini"
+    scp -P "$port" "$REPO_DIR/myts.l.ini" "$target:/mnt/us/launchpad/myts.l.ini"
     scp -P "$port" "$REPO_DIR/myts.l.ini" "$target:/mnt/us/myts/myts.l.ini"
 
     # Step F: Transfer assets and fonts
@@ -335,7 +339,7 @@ deploy_ssh() {
 
     # Step H: Set execution permissions
     log_info "Setting executable permissions..."
-    ssh -p "$port" "$target" "chmod +x /mnt/us/myts/myts /mnt/us/myts/myts-ng /mnt/us/myts/myts-ng-kindle /mnt/us/myts/launch_kindle.sh /mnt/us/myts/matrix 2>/dev/null || true"
+    ssh -p "$port" "$target" "chmod +x /mnt/us/myts/myts /mnt/us/myts/myts.sh /mnt/us/myts/myts-ng /mnt/us/myts/myts-ng-kindle /mnt/us/myts/launch_kindle.sh /mnt/us/myts/matrix 2>/dev/null || true"
 
     # Step I: Reload Launchpad
     log_info "Reloading Kindle Launchpad daemon..."
@@ -379,6 +383,7 @@ deploy_usb() {
     # Step B: Copy wrapper and native binaries
     log_info "Copying modern wrapper and binaries to $MYTS_DIR/..."
     cp -p "$REPO_DIR/tools/myts" "$MYTS_DIR/myts"
+    cp -p "$REPO_DIR/tools/myts.sh" "$MYTS_DIR/myts.sh"
     cp -p "$MYTS_NG_BIN" "$MYTS_DIR/myts-ng"
     cp -p "$MYTS_NG_BIN" "$MYTS_DIR/myts-ng-kindle"
     cp -p "$REPO_DIR/tools/launch_kindle.sh" "$MYTS_DIR/launch_kindle.sh"
@@ -386,6 +391,7 @@ deploy_usb() {
     # Step C: Copy Launchpad configuration
     log_info "Updating Launchpad configuration ($LAUNCHPAD_DIR/myts.ini)..."
     cp -p "$REPO_DIR/myts.l.ini" "$LAUNCHPAD_DIR/myts.ini"
+    cp -p "$REPO_DIR/myts.l.ini" "$LAUNCHPAD_DIR/myts.l.ini"
     cp -p "$REPO_DIR/myts.l.ini" "$MYTS_DIR/myts.l.ini"
 
     # Step D: Copy assets and fonts

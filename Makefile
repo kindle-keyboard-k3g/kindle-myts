@@ -52,8 +52,9 @@ myts.zip: myts myts-ng myts.l.ini
 	rm -rf myts.zip myts-bundle
 	mkdir -p myts-bundle/myts myts-bundle/launchpad
 	cp myts.l.ini myts-bundle/launchpad/myts.ini
+	cp myts.l.ini myts-bundle/launchpad/myts.l.ini
 	cp myts.ini *.hex README.md LICENSE keydefs.ini bdf2hex tools/launch_kindle.sh tools/matrix-anim.sh myts-bundle/myts/
-	cp tools/myts myts-bundle/myts/myts
+	cp tools/myts tools/myts.sh myts-bundle/myts/
 	@if [ -x "$(KINDLE_MUSL_CXX)" ]; then \
 		echo "Building ARMv6 Kindle binaries for distribution..."; \
 		$(MAKE) myts-ng-kindle tools/matrix-kindle; \
