@@ -18,6 +18,8 @@ static void print_usage(const char* prog_name) {
     std::printf("  --debug            Enable debug logging and diagnostics\n");
     std::printf("  --overlay          Render live on-screen telemetry banner\n");
     std::printf("  --metrics          Dump telemetry metrics summary on exit\n");
+    std::printf("  --rows N           Terminal rows (default: 0 = auto-fit display)\n");
+    std::printf("  --cols N           Terminal columns (default: 0 = auto-fit display)\n");
     std::printf("  --log-level LEVEL  Set log level (trace, debug, info, warn, error)\n");
     std::printf("  --log-file FILE    Redirect diagnostic logs to specified file\n");
     std::printf("  --dry-run          Initialize and render single frame without running loop\n");
@@ -27,6 +29,8 @@ static void print_usage(const char* prog_name) {
 int main(int argc, char** argv) {
     const char* fb_path = "/dev/fb0";
     const char* font_path = "ter-u12n.hex";
+    int rows = 0;
+    int cols = 0;
     myts::app::DebugConfig debug_cfg{};
     bool dry_run = false;
 
@@ -41,6 +45,10 @@ int main(int argc, char** argv) {
             debug_cfg.enable_overlay = true;
         } else if (arg == "--metrics") {
             debug_cfg.enable_metrics = true;
+        } else if (arg == "--rows" && i + 1 < argc) {
+            rows = std::atoi(argv[++i]);
+        } else if (arg == "--cols" && i + 1 < argc) {
+            cols = std::atoi(argv[++i]);
         } else if (arg == "--dry-run") {
             dry_run = true;
         } else if (arg == "--log-level" && i + 1 < argc) {
@@ -68,7 +76,7 @@ int main(int argc, char** argv) {
 
     std::printf("Starting kindle-myts (Modern C++ Stack)...\n");
 
-    myts::app::Application app(fb_path, font_path, /*rows=*/24, /*cols=*/80);
+    myts::app::Application app(fb_path, font_path, rows, cols);
     if (debug_cfg.enable_debug || debug_cfg.enable_metrics || debug_cfg.log_file != nullptr) {
         app.configure_debug(debug_cfg);
     }

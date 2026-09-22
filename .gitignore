@@ -16,5 +16,13 @@ tests/test_font_renderer
 tests/test_terminal_session
 tests/test_input_manager
 tests/test_application
+tests/test_logger
+tests/test_metrics
+tests/test_debug_overlay
 myts-ng
+myts-ng-dbg
+myts-ng-kindle
+myts-ng-kindle-dbg
+tools/matrix
+tools/matrix-kindle
 

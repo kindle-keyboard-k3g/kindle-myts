@@ -17,7 +17,7 @@ namespace graphics {
  */
 struct RefreshConfig {
     size_t partial_limit{40};           ///< Max partial updates before escalating to full GC16 flash.
-    float dirty_ratio_threshold{0.85f}; ///< Dirty area ratio (area/screen) triggering full refresh.
+    float dirty_ratio_threshold{1.0f};  ///< Dirty area ratio (area/screen) triggering full refresh.
     bool auto_full_refresh{true};       ///< Whether automatic full-refresh escalation is enabled.
 };
 

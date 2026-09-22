@@ -29,8 +29,8 @@ if [ -x "$SCRIPT_DIR/matrix-kindle" ]; then
 fi
 
 # Fallback: Pure POSIX shell implementation
-ROWS=24
-COLS=70
+ROWS=66
+COLS=75
 FRAMES=100
 DELAY=0.10
 

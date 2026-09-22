@@ -15,10 +15,11 @@
 #include <signal.h>
 #include <termios.h>
 #include <sys/select.h>
+#include <sys/ioctl.h>
 
-#define DEFAULT_ROWS 24
-#define DEFAULT_COLS 70
-#define MAX_DROPS 35
+#define DEFAULT_ROWS 66
+#define DEFAULT_COLS 75
+#define MAX_DROPS 100
 #define DEFAULT_DELAY_MS 100
 
 static volatile sig_atomic_t g_running = 1;
@@ -49,10 +50,9 @@ static inline char random_glyph(void) {
 }
 
 static void init_drop(Drop* d, int rows, int cols) {
-    (void)rows;
     d->col = 1 + (rand() % cols);
-    d->head_y = -(rand() % 10); // Start slightly above screen for staggered arrival
-    d->len = 4 + (rand() % 10); // Trail length 4..13
+    d->head_y = -(rand() % (rows > 10 ? rows / 2 : 10)); // Start staggered above screen
+    d->len = 5 + (rand() % (rows > 15 ? rows / 3 : 10)); // Trail length scaled to screen height
     d->speed = 1 + (rand() % 2); // 1 or 2
     d->tick = 0;
 }
@@ -79,6 +79,13 @@ int main(int argc, char** argv) {
     int delay_ms = DEFAULT_DELAY_MS;
     int max_frames = -1; // -1 = infinite until 'q' or signal
 
+    // Auto-detect terminal geometry from PTY / window size
+    struct winsize ws;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) {
+        if (ws.ws_row > 0) rows = ws.ws_row;
+        if (ws.ws_col > 0) cols = ws.ws_col;
+    }
+
     for (int i = 1; i < argc; ++i) {
         if (strcmp(argv[i], "--rows") == 0 && i + 1 < argc) {
             rows = atoi(argv[++i]);
@@ -90,8 +97,8 @@ int main(int argc, char** argv) {
             max_frames = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
             printf("Usage: %s [--rows N] [--cols N] [--delay MS] [--frames N]\n", argv[0]);
-            printf("  --rows N     Terminal rows (default: %d)\n", DEFAULT_ROWS);
-            printf("  --cols N     Terminal columns (default: %d)\n", DEFAULT_COLS);
+            printf("  --rows N     Terminal rows (default: %d or auto-detect)\n", DEFAULT_ROWS);
+            printf("  --cols N     Terminal columns (default: %d or auto-detect)\n", DEFAULT_COLS);
             printf("  --delay MS   Frame delay in ms (default: %d)\n", DEFAULT_DELAY_MS);
             printf("  --frames N   Max frames to run (default: infinite)\n");
             return 0;
@@ -100,6 +107,10 @@ int main(int argc, char** argv) {
 
     if (rows < 5) rows = 5;
     if (cols < 10) cols = 10;
+
+    int num_drops = (cols * 3) / 4;
+    if (num_drops > MAX_DROPS) num_drops = MAX_DROPS;
+    if (num_drops < 15) num_drops = 15;
 
     // Seed PRNG
     srand((unsigned int)time(NULL));
@@ -133,7 +144,7 @@ int main(int argc, char** argv) {
 
     // Initialize rain drops
     Drop drops[MAX_DROPS];
-    for (int i = 0; i < MAX_DROPS; ++i) {
+    for (int i = 0; i < num_drops; ++i) {
         init_drop(&drops[i], rows, cols);
         // Pre-advance some drops so the rain starts populated
         drops[i].head_y = rand() % rows;
@@ -150,7 +161,7 @@ int main(int argc, char** argv) {
         }
 
         // Update and draw each drop
-        for (int i = 0; i < MAX_DROPS; ++i) {
+        for (int i = 0; i < num_drops; ++i) {
             Drop* d = &drops[i];
             d->tick++;
             if (d->tick < d->speed) {

@@ -50,16 +50,17 @@ public:
      * @brief Constructs application instance with configured hardware parameters.
      * @param fb_path Framebuffer device path.
      * @param font_path Path to hex font file.
-     * @param rows Character rows.
-     * @param cols Character columns.
+     * @param rows Character rows (0 = auto-calculate to fill full screen).
+     * @param cols Character columns (0 = auto-calculate to fill full screen).
      */
     Application(const char* fb_path = "/dev/fb0",
                 const char* font_path = "ter-u12n.hex",
-                int rows = 24, int cols = 80)
+                int rows = 0, int cols = 0)
         : driver_(fb_path),
           display_(driver_.width(), driver_.height(), driver_),
           font_(8, 12),
-          session_(rows, cols),
+          session_(resolve_rows(rows, driver_.height(), 12),
+                   resolve_cols(cols, driver_.width(), 8)),
           canvas_(driver_.width(), driver_.height()),
           font_path_(font_path) {}
 
@@ -250,6 +251,22 @@ public:
     }
 
 private:
+    static int resolve_rows(int requested, int screen_height, int glyph_height) noexcept {
+        if (requested > 0) { return requested; }
+        if (screen_height > 0 && glyph_height > 0) {
+            return screen_height / glyph_height;
+        }
+        return 24;
+    }
+
+    static int resolve_cols(int requested, int screen_width, int glyph_width) noexcept {
+        if (requested > 0) { return requested; }
+        if (screen_width > 0 && glyph_width > 0) {
+            return screen_width / glyph_width;
+        }
+        return 80;
+    }
+
     [[nodiscard]] graphics::Rect compute_dirty_rect(const std::vector<bool>& dirty_rows) const noexcept {
         int gh = font_.glyph_height();
         int first = -1;
