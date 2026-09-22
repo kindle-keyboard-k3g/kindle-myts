@@ -22,8 +22,8 @@ find_myts_binary() {
 
 restore_kindle() {
     echo "[myts] Restoring Kindle Java framework and watchdog..."
-    /etc/init.d/framework start 2>/dev/null || true
-    /etc/init.d/pmond start 2>/dev/null || true
+    /etc/init.d/framework start >/dev/null 2>&1 || true
+    /etc/init.d/pmond start >/dev/null 2>&1 || true
 }
 
 trap restore_kindle EXIT
@@ -31,8 +31,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 echo "[myts] Stopping Kindle watchdog and Java framework..."
-/etc/init.d/pmond stop 2>/dev/null || true
-/etc/init.d/framework stop 2>/dev/null || true
+/etc/init.d/pmond stop >/dev/null 2>&1 || true
+/etc/init.d/framework stop >/dev/null 2>&1 || true
 sleep 1
 
 cd "$SCRIPT_DIR" || exit 1
