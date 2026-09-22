@@ -1,135 +1,155 @@
-# Implementation Plan: Idempotent Kindle Update & Deployment Scripts (Linux / WSL)
+# Implementation Plan: Interactive Help Screen & Keyboard Layout Viewer (`myts-ng`)
 
 ## 1. Context
 
-Updating or installing `kindle-myts` (with modern `myts-ng` as default) on a Kindle device currently requires manual multi-step operations (`scp`, `chmod`, editing `/mnt/us/launchpad/myts.ini`, managing running processes to avoid `ETXTBSY` locks, and restoring framework daemons).
+`myts-ng` runs directly on Kindle devices with non-standard hardware keyboards (Kindle Keyboard 3/3G and Kindle DX Graphite). These devices have compact 4-row physical keyboards with multi-layer keychords:
+- Physical letters and digits
+- **Shift layer** for uppercase letters and standard punctuation
+- **Sym layer** for programming symbols (`!@#$%^&*()*+#-_()&!?~$|/\"':`)
+- **Menu/Fn layer** for function keys (F1–F12) and special shell delimiters
+- Specialized navigation keys: top/bottom page-turn buttons (`Right<`, `Right>`, `Left<`, `Left>`), `Home`, `Back`, `aA` (Ctrl modifier), and the 5-way D-Pad.
 
-When users attempt to deploy without proper orchestration:
-1. Active `myts` processes lock the executable file on the Kindle filesystem, causing `scp: dest open "/mnt/us/myts/myts": Failure` (`ETXTBSY`).
-2. Custom user configurations (e.g. keybindings, margins, custom fonts in `myts.ini`) can be accidentally overwritten.
-3. Launchpad configurations might point to stale binaries or fail to reload.
-4. Users on WSL or native Linux may connect via USBNetwork/SSH or USB Mass Storage (drive mount), requiring different transfer mechanisms.
-
-The objective is to provide an idempotent, robust, and user-friendly deployment tool (`scripts/update-kindle.sh` and `make deploy` / `make update`) that works seamlessly on any Linux or WSL environment.
-
----
-
-## 2. Core Requirements & Idempotence Guarantees
-
-1. **Dual-Transport Support**:
-   - **Mode A (SSH / USBNetwork / Wi-Fi)**: Automated connection probing across standard Kindle targets (`kindle` SSH alias, `192.168.2.2`, `192.168.15.2`, or user-specified `--host`).
-   - **Mode B (USB Mass Storage / Drive Mount)**: Automatic detection of mounted Kindle partitions under Linux (`/media/$USER/*`, `/run/media/$USER/*`, `/mnt/*`) and WSL (`/mnt/d`, `/mnt/e`, etc., scanning for Kindle folder signatures: `documents`, `system`, or `launchpad`), or user-specified `--usb-path`.
-
-2. **Idempotence & Safety Guarantees**:
-   - **Safe Process Termination**: Terminates any active `myts`, `myts-ng`, or `matrix` instances on the device prior to copying, eliminating `ETXTBSY` file-busy errors.
-   - **Legacy Binary Preservation**: Backs up the original 2010 C binary to `/mnt/us/myts/myts-legacy` only if `myts-legacy` does not already exist (never clobbers existing backups).
-   - **User Configuration Protection**: Preserves existing `/mnt/us/myts/myts.ini` by default to avoid losing custom keybindings. Provides `--reset-config` for clean installs.
-   - **Atomic/Clean File Transfer**: Deploys `tools/myts` as `/mnt/us/myts/myts`, `myts-ng-kindle` as `/mnt/us/myts/myts-ng`, `tools/launch_kindle.sh`, fonts (`ter-u12n.hex`), `keydefs.ini`, and optionally `matrix`.
-   - **Launchpad Registration**: Configures `/mnt/us/launchpad/myts.ini` with correct hotkey bindings (`Shift + T, T`) and triggers a non-disruptive reload (`killall -HUP launchpad`).
-   - **Permission Enforcement**: Sets executable bits (`chmod +x`) on all binaries and scripts.
-   - **Post-Deploy Sanity Verification**: Over SSH, automatically executes `/mnt/us/myts/myts --dry-run` to verify startup, display initialization, and framework restoration.
-
-3. **Artifact Resolution (No Hard Build Dependencies for End Users)**:
-   - Priority 1: Use existing cross-compiled `myts-ng-kindle` if present in repository root.
-   - Priority 2: Extract prebuilt binaries from release archive `myts.zip` if available.
-   - Priority 3: Cross-compile on demand using `armv6-linux-musleabi-g++` if the toolchain is installed.
-   - Fallback: Clearly report if no precompiled ARM binary is found and guide the user on obtaining `myts.zip`.
+Users need an on-demand, interactive help screen accessible at any time during a terminal session:
+1. Typing `help` followed by Enter (or pressing the Kindle hardware `Menu` key / `Shift+H`) should open the help interface.
+2. The help screen displays an interactive physical keyboard layout, layer maps (Standard/Shift, Sym, Menu/Fn), and general terminal shortcuts.
+3. The interface reflects live key presses and allows seamless tab navigation using number keys `1`–`4` or the 5-way D-Pad.
+4. Pressing <kbd>q</kbd>, <kbd>Enter</kbd>, <kbd>Back</kbd>, <kbd>Esc</kbd> (`Right>`), or the help trigger exits the help screen cleanly and restores the active terminal display without ghosting.
 
 ---
 
-## 3. Proposed Architecture & Critical Files
+## 2. Requirements & Architectural Constraints
 
-### 3.1 New Script: `scripts/update-kindle.sh`
-- Pure POSIX-compliant shell script with bash compatibility.
-- CLI flags:
-  - `--ssh [HOST]`: Force SSH mode (default auto-probes `kindle`, `192.168.2.2`, `192.168.15.2`).
-  - `--usb [PATH]`: Force USB Mass Storage mode (auto-detects Kindle mount point if omitted).
-  - `--port [PORT]`: Custom SSH port (default: 22).
-  - `--reset-config`: Overwrite existing `myts.ini` on Kindle with repository defaults.
-  - `--build`: Force recompilation of ARM binaries before deploying.
-  - `--no-verify`: Skip post-deploy dry-run verification.
-  - `--help, -h`: Usage documentation.
-
-### 3.2 Symlink / Convenience Entry: `tools/update-kindle.sh`
-- Symlink to `scripts/update-kindle.sh` for developer discovery inside `tools/`.
-
-### 3.3 Integration with `Makefile`
-- Add phony targets:
-  - `make deploy`: Builds prerequisites (if toolchain available) and invokes `./scripts/update-kindle.sh`.
-  - `make update`: Alias for `make deploy`.
-
-### 3.4 Documentation Update
-- Update `README.md` and `docs/build-and-test.md` with simple one-liner instructions for updating the Kindle from Linux or WSL.
+- **Language & Embedded Constraints**: Modern C++17 (`-std=c++17 -Os -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections`).
+- **Memory & Allocation Rules**: Zero dynamic allocations on the input, event-routing, and rendering hot paths. Fixed-capacity buffers, stack structs, and string views only.
+- **Object Calisthenics & Clean Code**:
+  - One indent level per method; guard clauses and early returns (no `else`).
+  - Small, focused classes (≤100 lines) with ≤2 member variables per class.
+  - Functions ≤15 lines.
+  - Stateless renderers; tell-don't-ask interfaces.
+- **PTY Isolation**: When the help screen is active, keystrokes are intercepted and consumed by the help system; no input is forwarded to the PTY. Terminal session continues buffering incoming PTY data in memory without redrawing canvas until help exits.
+- **Clean Display Restoration**: Exiting help screen triggers full terminal redraw (`TerminalSession::mark_all_dirty()`) and hardware full e-ink refresh (`EinkDisplay::refresh_full()`).
 
 ---
 
-## 4. Detailed Implementation Flow for `scripts/update-kindle.sh`
+## 3. Component Architecture & Class Decomposition
 
-### Step 1: Pre-flight & Environment Detection
-- Detect WSL environment (`grep -qi microsoft /proc/version 2>/dev/null`).
-- Parse CLI arguments and validate inputs immediately (Fail Fast).
+```
+help/
+├── help_types.hpp            # Value objects & enums (HelpPage, HelpRoute, KeySnapshot)
+├── help_key_catalog.hpp      # Single source of truth for keycodes, layers, labels, and geometry
+├── help_command_tracker.hpp  # Zero-allocation observer for typed "help\r" sequence
+├── help_screen.hpp           # State container for active mode & navigation (≤2 members)
+├── help_renderer.hpp         # Stateless full and delta canvas rasterizer (FontRenderer/OwnedPixmap)
+└── help_controller.hpp       # Coordinates Screen & Tracker; interfaces with Application (≤2 members)
 
-### Step 2: Binary Resolution
-- Locate `myts-ng-kindle`, `tools/matrix-kindle` (or `tools/matrix`), `tools/myts`, `tools/launch_kindle.sh`, `myts.l.ini`, `ter-u12n.hex`, `keydefs.ini`, `myts.ini`.
-- If `myts-ng-kindle` is missing:
-  - Check if `myts.zip` exists and unpack `myts/myts-ng` and `myts/matrix`.
-  - If not, check if `armv6-linux-musleabi-g++` is in `PATH` and run `make myts-ng-kindle tools/matrix-kindle`.
-  - If impossible, exit with error message explaining where to get `myts.zip`.
+input/
+└── key_catalog.hpp           # Physical Kindle keycodes & modifier constants
 
-### Step 3: Target Connection Discovery
-- If mode is unspecified, auto-detect:
-  1. Try probing SSH (`ssh -o BatchMode=yes -o ConnectTimeout=2 kindle true` or `192.168.2.2` or `192.168.15.2`).
-  2. If SSH responds, select SSH mode.
-  3. If SSH fails, scan for mounted Kindle storage:
-     - On Linux: `/media/$USER/*`, `/run/media/$USER/*`, `/mnt/*`.
-     - On WSL: `/mnt/[a-z]`.
-     - Check for presence of `documents/` or `launchpad/` or `system/`.
-     - If found, select USB Mass Storage mode.
-  4. If neither is found, exit with diagnostic guidance showing how to enable USBNetwork or mount the Kindle drive.
+terminal/
+└── terminal_session.hpp      # Enhanced with mark_all_dirty() for full restore
 
-### Step 4: Execution - SSH Mode
-1. **Kill Active Processes**:
-   `ssh $KINDLE_SSH "killall -9 myts myts-ng matrix 2>/dev/null || true"`
-2. **Ensure Directories**:
-   `ssh $KINDLE_SSH "mkdir -p /mnt/us/myts /mnt/us/launchpad"`
-3. **Backup Legacy Binary (Idempotent)**:
-   `ssh $KINDLE_SSH "[ -f /mnt/us/myts/myts ] && [ ! -f /mnt/us/myts/myts-legacy ] && ! grep -q '#!/bin/sh' /mnt/us/myts/myts && cp /mnt/us/myts/myts /mnt/us/myts/myts-legacy || true"`
-4. **Transfer Files via SCP**:
-   - Transfer `tools/myts` -> `/mnt/us/myts/myts`
-   - Transfer `myts-ng-kindle` -> `/mnt/us/myts/myts-ng` and `/mnt/us/myts/myts-ng-kindle`
-   - Transfer `tools/launch_kindle.sh` -> `/mnt/us/myts/launch_kindle.sh`
-   - Transfer `myts.l.ini` -> `/mnt/us/launchpad/myts.ini`
-   - Transfer fonts (`ter-u12n.hex`) and `keydefs.ini` -> `/mnt/us/myts/`
-   - If `matrix-kindle` exists: transfer to `/mnt/us/myts/matrix`
-   - If `--reset-config` OR `/mnt/us/myts/myts.ini` does not exist: transfer `myts.ini` -> `/mnt/us/myts/myts.ini`
-5. **Set Permissions**:
-   `ssh $KINDLE_SSH "chmod +x /mnt/us/myts/myts /mnt/us/myts/myts-ng /mnt/us/myts/launch_kindle.sh /mnt/us/myts/matrix 2>/dev/null || true"`
-6. **Reload Launchpad**:
-   `ssh $KINDLE_SSH "killall -HUP launchpad 2>/dev/null || true"`
-7. **Verify**:
-   Execute `/mnt/us/myts/myts --dry-run` and verify exit code 0.
+app/
+└── application.hpp           # Input routing integration & display coordination
+```
 
-### Step 5: Execution - USB Mass Storage Mode
-1. Validate target directory: `$KINDLE_USB_PATH/myts` and `$KINDLE_USB_PATH/launchpad`.
-2. Backup legacy binary if present.
-3. Copy all files into `$KINDLE_USB_PATH/myts/` and `$KINDLE_USB_PATH/launchpad/myts.ini`.
-4. Flush buffers (`sync`).
-5. Output clear instructions: safely eject the Kindle, unplug USB cable, and press `Shift Shift Space` on Kindle keyboard to reload Launchpad.
+### 3.1 Domain Types (`help/help_types.hpp`)
+- `enum class HelpPage : uint8_t { Overview = 0, Keypad = 1, Sym = 2, Fn = 3 };`
+- `enum class HelpRoute : uint8_t { Pass, Consume, OpenAfterWrite, Redraw, Exit };`
+- `struct KeySnapshot { uint16_t code{0}; char character{'\0'}; uint8_t modifiers{0}; };`
+- `struct HelpNavigationState { HelpPage page{HelpPage::Overview}; KeySnapshot last_key{}; };`
+
+### 3.2 Key Catalog (`help/help_key_catalog.hpp` & `input/key_catalog.hpp`)
+Static/constexpr definitions shared across InputManager and HelpScreen:
+- Kindle 3 & DX hardware keycodes: Menu (`139`), Back (`158` / `91`), Right< (`109`), Right> (`191` / `124`), Left< (`193`), Left> (`104`), aA/Ctrl (`190` / `90`), Sym (`126` / `94`), 5-way arrows (`103`, `108`, `105`, `106`), Select (`194` / `92`).
+- Physical row layout:
+  - Row 1: `Q W E R T Y U I O P` (Shift: `! @ # $ % ^ & * ( )`)
+  - Row 2: `A S D F G H J K L Del`
+  - Row 3: `Z X C V B N M . / Enter`
+  - Control row: `Shift`, `Ctrl (aA)`, `Sym (Back)`, `Menu`, `Space`
+- Sym Layer symbols: `!@#$%^&*()*+#-_()&!?~$|/\"':`
+- Menu/Fn Layer mappings: `F1`–`F10` on Row 1, `F11`–`F12` + punctuation on Row 2 & 3.
+
+### 3.3 Command Tracker (`help/help_command_tracker.hpp`)
+- Fixed 8-byte stack ring/buffer tracking line input.
+- Detects the exact typed sequence `help` followed by Enter (`\r`).
+- Ignores prefixes (`echo help`, `helper`) and resets on control/escape codes or backspace.
+- Strictly zero runtime allocation.
+
+### 3.4 Help Screen (`help/help_screen.hpp`)
+- Exactly 2 member variables:
+  ```cpp
+  bool active_{false};
+  HelpNavigationState nav_{};
+  ```
+- Methods: `open()`, `close()`, `set_page(HelpPage)`, `record_key(KeySnapshot)`.
+
+### 3.5 Help Controller (`help/help_controller.hpp`)
+- Exactly 2 member variables:
+  ```cpp
+  HelpScreen screen_{};
+  HelpCommandTracker tracker_{};
+  ```
+- Manages routing in `Application::handle_input_event()`:
+  - `before_terminal_write()`: intercepts Menu key (`139`), `Shift+H`, or active help navigation.
+  - `after_terminal_write()`: detects typed `help\r` to open help after shell receives command.
+  - Handles exit keys (<kbd>q</kbd>, <kbd>Enter</kbd>, <kbd>Back</kbd>, <kbd>Right></kbd>, <kbd>Menu</kbd>).
+
+### 3.6 Stateless Renderer (`help/help_renderer.hpp`)
+- Uses existing `graphics::FontRenderer::draw_char()` and `graphics::OwnedPixmap::set_pixel()`.
+- Renders:
+  - Top tab header: `[1] Overview   [2] Keypad   [3] Sym   [4] Menu/Fn`
+  - Active page content (Overview shortcuts, visual ASCII keyboard with active key highlighted, Sym table, or Fn table)
+  - Bottom status bar: `Key: [code] -> [action] | Press Back/Right>/q/Enter to Exit`
+- Two render pathways:
+  - `render_full()`: Clears canvas and renders entire help page (on open or tab switch).
+  - `render_delta()`: Re-renders only changed key box and status line for partial e-ink refresh.
 
 ---
 
-## 5. Verification Plan
+## 4. Integration with `app/application.hpp`
 
-1. **Automated Unit & Shell Checks**:
-   - Syntax validation: `bash -n scripts/update-kindle.sh`
-   - Test help and argument validation: `./scripts/update-kindle.sh --help`
-   - Test non-existent path errors: `./scripts/update-kindle.sh --usb /tmp/nonexistent`
-2. **Real-Device SSH Verification**:
-   - Run `./scripts/update-kindle.sh --ssh kindle` against connected Kindle.
-   - Verify idempotence by running it 3 times consecutively; ensure zero failures, no file corruption, and dry-run tests pass every time.
-3. **USB Mass Storage Mode Verification**:
-   - Create mock Kindle directory structure in temporary folder (`mkdir -p /tmp/mock-kindle/{documents,launchpad,myts}`).
-   - Run `./scripts/update-kindle.sh --usb /tmp/mock-kindle`.
-   - Verify all required files, permissions, and launchpad configs are deployed correctly without errors.
-4. **Makefile Target Verification**:
-   - Run `make deploy` and verify seamless orchestration.
+1. **Input Interception**:
+   - `handle_input_event(ev)`:
+     - Feeds `ev` to `input_.process_event(ev)`.
+     - Queries `help_.before_terminal_write(ev, input_.modifiers(), seq)`.
+     - If `HelpRoute::Consume` or `HelpRoute::Exit`: consumes event, updates help screen, does NOT write to PTY.
+     - If `HelpRoute::Redraw`: draws help frame, flushes to display.
+     - If `HelpRoute::Pass`: writes `seq` to PTY, then feeds `help_.after_terminal_write(seq)` (opening help if `help\r` was entered).
+2. **PTY Suppression**:
+   - In PTY read callback: if `help_.active()`, reads and feeds data to `session_.feed_input(data)` (buffering) but bypasses `render_frame()` to keep the help screen visible.
+3. **Exit & Canvas Restoration**:
+   - On help exit:
+     - `session_.mark_all_dirty();`
+     - `session_.render(canvas_, font_, true, nullptr);`
+     - `driver_.copy_surface(canvas_);`
+     - `display_.refresh_full();`
+
+---
+
+## 5. Verification & Testing Plan
+
+1. **Unit Test Suites**:
+   - `tests/test_help_command_tracker.cpp`:
+     - Verifies exact `help\r` trigger.
+     - Verifies non-triggers: `helper\r`, `echo help\r`, `ahelp\r`.
+     - Verifies backspace, control sequences, and buffer overflow safety.
+   - `tests/test_help_navigation.cpp`:
+     - Verifies default page is `Overview`.
+     - Verifies numeric key navigation (`1`..`4`) and 5-way D-Pad wrapping (Left/Right).
+     - Verifies exit triggers (<kbd>q</kbd>, <kbd>Enter</kbd>, <kbd>Back</kbd>, <kbd>Right></kbd>, <kbd>Menu</kbd>).
+   - `tests/test_help_renderer.cpp`:
+     - Verifies all 4 pages render without bounds violations.
+     - Verifies `render_full()` and `render_delta()` return valid clipped Rects.
+     - Verifies zero memory allocations during rendering.
+   - `tests/test_application.cpp`:
+     - Verifies modal help lifecycle: enter via Menu key, suppression of PTY writes, and full screen restoration on exit.
+
+2. **Sanitizer Verification**:
+   - Run `make test-asan` covering AddressSanitizer and UndefinedBehaviorSanitizer across all suites.
+
+3. **Kindle Hardware / Cross-Compilation Verification**:
+   - Cross-compile with `armv6-linux-musleabi-g++` (`make myts-ng-kindle`).
+   - Run `./scripts/update-kindle.sh --ssh kindle` to deploy to connected device.
+   - Verify typing `help` in terminal opens help screen on device.
+   - Verify pressing `Menu` toggles help screen.
+   - Verify navigating pages with 5-way D-Pad and exiting with `q` or `Back`.
