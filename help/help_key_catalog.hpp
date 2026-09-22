@@ -46,14 +46,14 @@ public:
         {30, 'A', '\0', "A"}, {31, 'S', '\0', "S"}, {32, 'D', '\0', "D"},
         {33, 'F', '\0', "F"}, {34, 'G', '\0', "G"}, {35, 'H', '\0', "H"},
         {36, 'J', '\0', "J"}, {37, 'K', '\0', "K"}, {38, 'L', '\0', "L"},
-        {input::KeyCatalog::KEY_DEL, '<', '\0', "DEL"}
+        {input::KeyCatalog::CODE_DEL, '<', '\0', "DEL"}
     };
 
     static constexpr PhysicalKey ROW3[ROW3_COUNT] = {
         {44, 'Z', '\0', "Z"}, {45, 'X', '\0', "X"}, {46, 'C', '\0', "C"},
         {47, 'V', '\0', "V"}, {48, 'B', '\0', "B"}, {49, 'N', '\0', "N"},
         {50, 'M', '\0', "M"}, {52, '.', '>', "."}, {53, '/', '?', "/"},
-        {input::KeyCatalog::KEY_ENTER, '\r', '\0', "RET"}
+        {input::KeyCatalog::CODE_ENTER, '\r', '\0', "RET"}
     };
 
     static constexpr SymEntry SYM_ENTRIES[SYM_COUNT] = {
@@ -84,19 +84,19 @@ public:
     };
 
     [[nodiscard]] static const char* keycode_to_name(uint16_t code) noexcept {
-        if (code == input::KeyCatalog::KEY_MENU) return "Menu";
+        if (code == input::KeyCatalog::CODE_MENU) return "Menu";
         if (input::KeyCatalog::is_back_key(code)) return "Back";
-        if (code == input::KeyCatalog::KEY_PAGE_FORWARD) return "Right<";
-        if (code == input::KeyCatalog::KEY_PAGE_TURN_K3 || code == input::KeyCatalog::KEY_PAGE_TURN_DX) return "Right>";
-        if (code == input::KeyCatalog::KEY_PAGE_BACK_K3 || code == input::KeyCatalog::KEY_PAGE_BACK_DX) return "Left<";
-        if (code == input::KeyCatalog::KEY_FIVEWAY_UP) return "Up";
-        if (code == input::KeyCatalog::KEY_FIVEWAY_DOWN) return "Down";
-        if (code == input::KeyCatalog::KEY_FIVEWAY_LEFT) return "Left";
-        if (code == input::KeyCatalog::KEY_FIVEWAY_RIGHT) return "Right";
+        if (code == input::KeyCatalog::CODE_PAGE_FORWARD) return "Right<";
+        if (code == input::KeyCatalog::CODE_PAGE_TURN_K3 || code == input::KeyCatalog::CODE_PAGE_TURN_DX) return "Right>";
+        if (code == input::KeyCatalog::CODE_PAGE_BACK_K3 || code == input::KeyCatalog::CODE_PAGE_BACK_DX) return "Left<";
+        if (code == input::KeyCatalog::CODE_FIVEWAY_UP) return "Up";
+        if (code == input::KeyCatalog::CODE_FIVEWAY_DOWN) return "Down";
+        if (code == input::KeyCatalog::CODE_FIVEWAY_LEFT) return "Left";
+        if (code == input::KeyCatalog::CODE_FIVEWAY_RIGHT) return "Right";
         if (input::KeyCatalog::is_select_key(code)) return "Select";
-        if (code == input::KeyCatalog::KEY_ENTER) return "Enter";
-        if (code == input::KeyCatalog::KEY_DEL) return "Del";
-        if (code == input::KeyCatalog::KEY_SPACE) return "Space";
+        if (code == input::KeyCatalog::CODE_ENTER) return "Enter";
+        if (code == input::KeyCatalog::CODE_DEL) return "Del";
+        if (code == input::KeyCatalog::CODE_SPACE) return "Space";
         return nullptr;
     }
 };
