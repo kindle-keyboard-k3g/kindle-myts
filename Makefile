@@ -21,7 +21,7 @@ ASAN_CFLAGS = $(HOST_CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointe
 ASAN_CXXFLAGS = $(HOST_CXXFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer
 
 # files to publish
-PUB= $(HEADERS) $(ALLSRCS) Makefile README.md myts myts-ng myts.ini keydefs.ini
+PUB= $(HEADERS) $(ALLSRCS) Makefile README.md myts myts-ng myts.ini keydefs.ini myts.l.ini
 
 HEADERS = config.h dynstring.h font.h myts.h pixop.h screen.h terminal.h
 HEADERS += linux/
@@ -48,13 +48,23 @@ terminal.o: terminal.h
 tgz: $(PUB)
 	tar cvzf /tmp/kiterm.tgz --exclude .svn $(PUB)
 
-myts.zip: $(PUB) myts-ng
+myts.zip: myts myts-ng myts.l.ini
 	rm -rf myts.zip myts-bundle
-	mkdir -p myts-bundle
-	cp myts.ini *.hex README.md LICENSE keydefs.ini bdf2hex myts-bundle/
-	cp myts myts-bundle/myts
-	cp myts-ng myts-bundle/myts-ng
-	(cd myts-bundle && zip -r ../myts.zip *)
+	mkdir -p myts-bundle/myts myts-bundle/launchpad
+	cp myts.l.ini myts-bundle/launchpad/myts.ini
+	cp myts.ini *.hex README.md LICENSE keydefs.ini bdf2hex tools/launch_kindle.sh tools/matrix-anim.sh myts-bundle/myts/
+	cp tools/myts myts-bundle/myts/myts
+	@if [ -x "$(KINDLE_MUSL_CXX)" ]; then \
+		echo "Building ARMv6 Kindle binaries for distribution..."; \
+		$(MAKE) myts-ng-kindle tools/matrix-kindle; \
+		cp myts-ng-kindle myts-bundle/myts/myts-ng; \
+		cp tools/matrix-kindle myts-bundle/myts/matrix; \
+	else \
+		cp myts-ng myts-bundle/myts/myts-ng; \
+		if [ -x tools/matrix ]; then cp tools/matrix myts-bundle/myts/matrix; fi; \
+	fi
+	cp myts myts-bundle/myts/myts-legacy
+	(cd myts-bundle && zip -r ../myts.zip launchpad myts)
 	rm -rf myts-bundle
 
 clean:

@@ -48,3 +48,21 @@ shift_down = pagedown
   - `get_int(section, key, default_val)`
   - `get_bool(section, key, default_val)`
 - Fully verified in `tests/test_modern_config.cpp` under AddressSanitizer.
+
+---
+
+## 3. Kindle Launchpad Configuration (`myts.l.ini`)
+
+Kindle Launchpad scans INI files in `/mnt/us/launchpad/` to bind hotkeys to terminal launcher commands:
+
+```ini
+[Actions]
+T T = !/mnt/us/myts/myts &
+T Y = !/mnt/us/myts/myts &
+T U = !/mnt/us/myts/myts &
+T A = !killall -9 myts-ng myts-ng-kindle myts-ng-kindle-dbg myts 2>/dev/null &
+```
+
+- When `Shift + T, T` is pressed on the Kindle Keyboard physical keyboard, Launchpad executes `/mnt/us/myts/myts`.
+- `/mnt/us/myts/myts` wraps `launch_kindle.sh` to safely stop `framework` and `pmond`, launches `myts-ng`, and restores framework daemons upon terminal termination.
+

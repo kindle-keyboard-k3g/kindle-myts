@@ -1,0 +1,21 @@
+#!/bin/sh
+# Default entry point for kindle-myts on Kindle Keyboard (K3/K3G).
+# Forwards to launch_kindle.sh to manage framework/watchdog and run myts-ng.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [ -x "$SCRIPT_DIR/launch_kindle.sh" ]; then
+    exec "$SCRIPT_DIR/launch_kindle.sh" "$@"
+fi
+
+# Direct fallback if launch_kindle.sh is absent
+if [ -x "$SCRIPT_DIR/myts-ng" ]; then
+    exec "$SCRIPT_DIR/myts-ng" /dev/fb0 "$SCRIPT_DIR/ter-u12n.hex" "$@"
+elif [ -x "$SCRIPT_DIR/myts-ng-kindle" ]; then
+    exec "$SCRIPT_DIR/myts-ng-kindle" /dev/fb0 "$SCRIPT_DIR/ter-u12n.hex" "$@"
+elif [ -x "$SCRIPT_DIR/myts-ng-kindle-dbg" ]; then
+    exec "$SCRIPT_DIR/myts-ng-kindle-dbg" /dev/fb0 "$SCRIPT_DIR/ter-u12n.hex" "$@"
+fi
+
+echo "[myts] Error: Could not find launch_kindle.sh or myts-ng binary in $SCRIPT_DIR" >&2
+exit 1

@@ -98,16 +98,17 @@ kindle-myts/
 ### Installation Steps
 
 1. **Download or Build:**
-   Download the latest release zip (`myts.zip`) or build it using `make myts.zip`.
+   Download the latest release zip (`myts.zip`) or build it using `make myts.zip`. When cross-compiling, it packages the modern static ARMv6 binary (`myts-ng`).
 
 2. **Copy Launchpad Configuration:**
    Mount your Kindle via USB and copy the Launchpad shortcut configuration into the `launchpad/` folder on your Kindle's USB partition:
    ```bash
-   cp myts.l.ini /path/to/kindle/launchpad/
+   cp myts.l.ini /path/to/kindle/launchpad/myts.ini
    ```
+   *(Note: `myts.zip` already bundles `launchpad/myts.ini` for one-step extraction).*
 
 3. **Deploy the `myts` Directory:**
-   Copy the `myts` folder (containing the `myts` binary, `myts.ini`, `keydefs.ini`, font files `*.hex`, and `profile`) into `/mnt/us/myts/` (the root of the USB user store):
+   Copy the `myts` folder (containing the default `myts` launcher wrapper, `myts-ng` native binary, `launch_kindle.sh`, `ter-u12n.hex`, and config files) into `/mnt/us/myts/` (the root of the USB user store):
    ```bash
    mkdir -p /path/to/kindle/myts
    cp -r myts/* /path/to/kindle/myts/
@@ -118,6 +119,17 @@ kindle-myts/
    ```
    Shift Shift Space
    ```
+
+---
+
+## Architecture & Binary Layout
+
+Starting with v2+, `myts-ng` is the default modern C++ terminal engine on the Kindle:
+
+- **`myts` (`tools/myts`)**: The default executable entry point invoked by Launchpad shortcuts (`Shift + T, T`) or shell. It invokes `launch_kindle.sh` to manage Kindle framework and watchdog daemons.
+- **`myts-ng`**: The modern C++17 native terminal emulator binary compiled statically with musl libc for ARMv6. Provides auto-fit full-screen geometry ($66 \times 75$ characters on $600 \times 800$), zero-flash partial e-ink updates, dirty row caching, and bold font synthesis.
+- **`launch_kindle.sh`**: Safely suspends Amazon's `framework` and `pmond` watchdog daemons during terminal sessions and restores them on exit, avoiding screen fighting and watchdog reboot timeouts.
+- **`myts-legacy`**: The original 2010 C implementation preserved for backward compatibility and testing.
 
 ---
 
