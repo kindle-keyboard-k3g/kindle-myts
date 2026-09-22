@@ -20,7 +20,7 @@ public:
     }
 
     [[nodiscard]] std::string_view current_text() const noexcept {
-        return std::string_view(buffer_, len_);
+        return std::string_view(buffer_, len_ & LEN_MASK);
     }
 
     bool feed(std::string_view seq) noexcept {
@@ -32,7 +32,21 @@ public:
     }
 
 private:
+    static constexpr uint8_t FLAG_ESCAPE = 0x80;
+    static constexpr uint8_t FLAG_CSI    = 0x40;
+    static constexpr uint8_t FLAG_MASK   = 0xC0;
+    static constexpr uint8_t LEN_MASK    = 0x0F;
+
     bool process_char(char c) noexcept {
+        uint8_t flags = len_ & FLAG_MASK;
+        if (flags != 0) {
+            return process_escape_char(c, flags);
+        }
+        if (c == '\033') {
+            len_ = FLAG_ESCAPE;
+            buffer_[0] = '\0';
+            return false;
+        }
         if (c == '\r' || c == '\n') {
             return check_and_reset();
         }
@@ -48,6 +62,26 @@ private:
         return false;
     }
 
+    bool process_escape_char(char c, uint8_t flags) noexcept {
+        if (c == '\r' || c == '\n') {
+            reset();
+            return false;
+        }
+        if (flags == FLAG_ESCAPE) {
+            if (c == '[') {
+                len_ = FLAG_CSI;
+                return false;
+            }
+            reset();
+            return false;
+        }
+        auto uc = static_cast<unsigned char>(c);
+        if (uc >= 0x40 && uc <= 0x7E) {
+            reset();
+        }
+        return false;
+    }
+
     bool check_and_reset() noexcept {
         bool match = (current_text() == "help");
         reset();
@@ -55,11 +89,13 @@ private:
     }
 
     void handle_backspace() noexcept {
-        if (len_ == 0) {
+        uint8_t l = len_ & LEN_MASK;
+        if (l == 0) {
             return;
         }
-        --len_;
-        buffer_[len_] = '\0';
+        --l;
+        len_ = l;
+        buffer_[l] = '\0';
     }
 
     static bool is_control_char(char c) noexcept {
@@ -67,8 +103,10 @@ private:
     }
 
     void append_char(char c) noexcept {
-        if (len_ < sizeof(buffer_) - 1) {
-            buffer_[len_++] = c;
+        uint8_t l = len_ & LEN_MASK;
+        if (l < sizeof(buffer_) - 1) {
+            buffer_[l] = c;
+            len_ = l + 1;
             buffer_[len_] = '\0';
             return;
         }

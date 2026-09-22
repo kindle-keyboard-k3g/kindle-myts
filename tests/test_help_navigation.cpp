@@ -27,6 +27,10 @@ static int test_key_catalog_constants_and_helpers() {
     ASSERT_EQ(KeyCatalog::CODE_PAGE_TURN_DX, 124);
     ASSERT_EQ(KeyCatalog::CODE_SELECT_K3, 194);
     ASSERT_EQ(KeyCatalog::CODE_SELECT_DX, 92);
+    ASSERT_EQ(KeyCatalog::CODE_AA_CTRL_K3, 190);
+    ASSERT_EQ(KeyCatalog::CODE_AA_CTRL_DX, 90);
+    ASSERT_EQ(KeyCatalog::CODE_SYM_K3, 126);
+    ASSERT_EQ(KeyCatalog::CODE_SYM_DX, 94);
 
     ASSERT_TRUE(KeyCatalog::is_back_key(158));
     ASSERT_TRUE(KeyCatalog::is_back_key(91));
@@ -43,6 +47,15 @@ static int test_key_catalog_constants_and_helpers() {
     ASSERT_TRUE(KeyCatalog::is_exit_trigger(KeyCatalog::CODE_BACK_DX));
     ASSERT_TRUE(KeyCatalog::is_exit_trigger(KeyCatalog::CODE_MENU));
     ASSERT_TRUE(KeyCatalog::is_exit_trigger(KeyCatalog::CODE_PAGE_TURN_K3));
+    ASSERT_TRUE(KeyCatalog::is_exit_trigger(KeyCatalog::CODE_Q));
+    ASSERT_TRUE(KeyCatalog::is_exit_trigger(KeyCatalog::CODE_ENTER));
+    ASSERT_TRUE(KeyCatalog::is_exit_trigger(KeyCatalog::CODE_H, KeyCatalog::MOD_SHIFT));
+    ASSERT_FALSE(KeyCatalog::is_exit_trigger(KeyCatalog::CODE_H, KeyCatalog::MOD_NONE));
+
+    ASSERT_STR_EQ(HelpKeyCatalog::keycode_to_name(190), "aA / Ctrl");
+    ASSERT_STR_EQ(HelpKeyCatalog::keycode_to_name(90), "aA / Ctrl");
+    ASSERT_STR_EQ(HelpKeyCatalog::keycode_to_name(126), "Sym");
+    ASSERT_STR_EQ(HelpKeyCatalog::keycode_to_name(94), "Sym");
 
     return 0;
 }
@@ -78,15 +91,21 @@ static int test_help_key_catalog_layouts() {
     ASSERT_EQ(HelpKeyCatalog::ROW3[0].primary, 'Z');
     ASSERT_EQ(HelpKeyCatalog::ROW3[9].primary, '\r');
 
-    ASSERT_TRUE(HelpKeyCatalog::SYM_COUNT >= 20);
-    ASSERT_EQ(HelpKeyCatalog::SYM_ENTRIES[0].key, 'Q');
+    ASSERT_EQ(HelpKeyCatalog::SYM_COUNT, 28);
+    ASSERT_EQ(HelpKeyCatalog::SYM_ENTRIES[0].key, 'q');
     ASSERT_EQ(HelpKeyCatalog::SYM_ENTRIES[0].symbol, '!');
+    ASSERT_EQ(HelpKeyCatalog::SYM_ENTRIES[10].key, 'a');
+    ASSERT_EQ(HelpKeyCatalog::SYM_ENTRIES[10].symbol, '*');
+    ASSERT_EQ(HelpKeyCatalog::SYM_ENTRIES[27].key, '.');
+    ASSERT_EQ(HelpKeyCatalog::SYM_ENTRIES[27].symbol, ':');
 
-    ASSERT_TRUE(HelpKeyCatalog::FN_COUNT >= 12);
-    ASSERT_EQ(HelpKeyCatalog::FN_ENTRIES[0].key, 'Q');
+    ASSERT_EQ(HelpKeyCatalog::FN_COUNT, 28);
+    ASSERT_EQ(HelpKeyCatalog::FN_ENTRIES[0].key, 'q');
     ASSERT_STR_EQ(HelpKeyCatalog::FN_ENTRIES[0].f_label, "F1");
-    ASSERT_EQ(HelpKeyCatalog::FN_ENTRIES[11].key, 'S');
-    ASSERT_STR_EQ(HelpKeyCatalog::FN_ENTRIES[11].f_label, "F12");
+    ASSERT_EQ(HelpKeyCatalog::FN_ENTRIES[18].key, 'l');
+    ASSERT_STR_EQ(HelpKeyCatalog::FN_ENTRIES[18].f_label, "F11");
+    ASSERT_EQ(HelpKeyCatalog::FN_ENTRIES[19].key, 'D');
+    ASSERT_STR_EQ(HelpKeyCatalog::FN_ENTRIES[19].f_label, "F12");
 
     return 0;
 }
@@ -138,7 +157,7 @@ static int test_help_controller_routing_inactive() {
 
     // Menu key opens help immediately
     auto r_menu = ctrl.before_terminal_write(make_ev(EV_KEY, KeyCatalog::CODE_MENU, 1), mods, "");
-    ASSERT_EQ(static_cast<uint8_t>(r_menu), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r_menu), static_cast<uint8_t>(HelpRoute::RedrawFull));
     ASSERT_TRUE(ctrl.active());
 
     ctrl.close();
@@ -147,7 +166,7 @@ static int test_help_controller_routing_inactive() {
     // Shift+H opens help
     mods.shift = true;
     auto r_sh = ctrl.before_terminal_write(make_ev(EV_KEY, KeyCatalog::CODE_H, 1), mods, "H");
-    ASSERT_EQ(static_cast<uint8_t>(r_sh), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r_sh), static_cast<uint8_t>(HelpRoute::RedrawFull));
     ASSERT_TRUE(ctrl.active());
 
     ctrl.close();
@@ -159,7 +178,7 @@ static int test_help_controller_routing_inactive() {
     ASSERT_FALSE(ctrl.active());
 
     auto r_enter = ctrl.after_terminal_write("\r");
-    ASSERT_EQ(static_cast<uint8_t>(r_enter), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r_enter), static_cast<uint8_t>(HelpRoute::RedrawFull));
     ASSERT_TRUE(ctrl.active());
 
     return 0;
@@ -171,33 +190,46 @@ static int test_help_controller_routing_active() {
     ctrl.open();
     ASSERT_TRUE(ctrl.active());
 
-    // Tab navigation: '2' (Keypad)
+    // Non-EV_KEY event is consumed without routing as key
+    auto r_msc = ctrl.before_terminal_write(make_ev(EV_MSC, 4, 1), mods, "");
+    ASSERT_EQ(static_cast<uint8_t>(r_msc), static_cast<uint8_t>(HelpRoute::Consume));
+    ASSERT_EQ(static_cast<uint8_t>(ctrl.screen().state().page), static_cast<uint8_t>(HelpPage::Overview));
+
+    // Tab navigation: '2' (Keypad) -> RedrawFull
     auto r2 = ctrl.before_terminal_write(make_ev(EV_KEY, 3, 1), mods, "2");
-    ASSERT_EQ(static_cast<uint8_t>(r2), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r2), static_cast<uint8_t>(HelpRoute::RedrawFull));
     ASSERT_EQ(static_cast<uint8_t>(ctrl.screen().state().page), static_cast<uint8_t>(HelpPage::Keypad));
 
-    // Tab navigation: '3' (Sym)
+    // Tab navigation: '3' (Sym) -> RedrawFull
     auto r3 = ctrl.before_terminal_write(make_ev(EV_KEY, 4, 1), mods, "3");
-    ASSERT_EQ(static_cast<uint8_t>(r3), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r3), static_cast<uint8_t>(HelpRoute::RedrawFull));
     ASSERT_EQ(static_cast<uint8_t>(ctrl.screen().state().page), static_cast<uint8_t>(HelpPage::Sym));
 
     // D-Pad Left -> Keypad
     auto r_left = ctrl.before_terminal_write(make_ev(EV_KEY, KeyCatalog::CODE_FIVEWAY_LEFT, 1), mods, "\033[D");
-    ASSERT_EQ(static_cast<uint8_t>(r_left), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r_left), static_cast<uint8_t>(HelpRoute::RedrawFull));
     ASSERT_EQ(static_cast<uint8_t>(ctrl.screen().state().page), static_cast<uint8_t>(HelpPage::Keypad));
 
     // D-Pad Right -> Sym
     auto r_right = ctrl.before_terminal_write(make_ev(EV_KEY, KeyCatalog::CODE_FIVEWAY_RIGHT, 1), mods, "\033[C");
-    ASSERT_EQ(static_cast<uint8_t>(r_right), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r_right), static_cast<uint8_t>(HelpRoute::RedrawFull));
     ASSERT_EQ(static_cast<uint8_t>(ctrl.screen().state().page), static_cast<uint8_t>(HelpPage::Sym));
 
-    // Regular key press records key and triggers redraw
+    // Regular key press records key and triggers RedrawDelta (not Full!)
     auto r_key = ctrl.before_terminal_write(make_ev(EV_KEY, 30, 1), mods, "a");
-    ASSERT_EQ(static_cast<uint8_t>(r_key), static_cast<uint8_t>(HelpRoute::Redraw));
+    ASSERT_EQ(static_cast<uint8_t>(r_key), static_cast<uint8_t>(HelpRoute::RedrawDelta));
     ASSERT_EQ(ctrl.screen().state().last_key.code, 30);
     ASSERT_EQ(ctrl.screen().state().last_key.character, 'a');
 
-    // Exit triggers: 'q'
+    // Exit triggers: Shift+H exits active help
+    mods.shift = true;
+    auto r_sh = ctrl.before_terminal_write(make_ev(EV_KEY, KeyCatalog::CODE_H, 1), mods, "H");
+    ASSERT_EQ(static_cast<uint8_t>(r_sh), static_cast<uint8_t>(HelpRoute::Exit));
+    ASSERT_FALSE(ctrl.active());
+    mods.shift = false;
+
+    // Reopen & exit triggers: 'q'
+    ctrl.open();
     auto r_q = ctrl.before_terminal_write(make_ev(EV_KEY, 16, 1), mods, "q");
     ASSERT_EQ(static_cast<uint8_t>(r_q), static_cast<uint8_t>(HelpRoute::Exit));
     ASSERT_FALSE(ctrl.active());

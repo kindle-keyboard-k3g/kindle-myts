@@ -172,8 +172,12 @@ public:
             restore_terminal_display();
             return {};
         }
-        if (route == help::HelpRoute::Redraw) {
+        if (route == help::HelpRoute::RedrawFull) {
             render_help(/*full=*/true);
+            return {};
+        }
+        if (route == help::HelpRoute::RedrawDelta) {
+            render_help(/*full=*/false);
             return {};
         }
         if (route == help::HelpRoute::Consume) {
@@ -189,7 +193,7 @@ public:
 
         if (!seq.empty()) {
             help::HelpRoute after = help_.after_terminal_write(seq);
-            if (after == help::HelpRoute::Redraw) {
+            if (after == help::HelpRoute::RedrawFull) {
                 render_help(/*full=*/true);
             }
         }
@@ -324,8 +328,12 @@ private:
     }
 
     void restore_terminal_display() {
+        canvas_.clear(0xFF);
         session_.mark_all_dirty();
         session_.render(canvas_, font_, /*show_cursor=*/true, nullptr);
+        if (debug_cfg_.enable_overlay) {
+            overlay_.render(canvas_, font_, metrics_.snapshot(), 0, 0);
+        }
         copy_canvas_to_driver();
         display_.refresh_full();
     }

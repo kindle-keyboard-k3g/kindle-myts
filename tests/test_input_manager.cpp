@@ -108,9 +108,35 @@ static int test_input_manager_del_and_space() {
     return 0;
 }
 
+static int test_input_manager_kindle_modifiers() {
+    InputManager im;
+
+    // Press Kindle 3 aA key (190) -> sets ctrl modifier
+    im.process_event(make_event(EV_KEY, 190, 1));
+    ASSERT_TRUE(im.modifiers().ctrl);
+
+    // Press 'c' (46) with aA active -> emits Ctrl+C (\x03)
+    std::string_view s_ctrl_c = im.process_event(make_event(EV_KEY, 46, 1));
+    ASSERT_EQ(s_ctrl_c.size(), 1);
+    ASSERT_EQ(s_ctrl_c[0], '\x03');
+
+    // Release Kindle 3 aA key (190)
+    im.process_event(make_event(EV_KEY, 190, 0));
+    ASSERT_FALSE(im.modifiers().ctrl);
+
+    // Press Kindle DX aA key (90) -> sets ctrl modifier
+    im.process_event(make_event(EV_KEY, 90, 1));
+    ASSERT_TRUE(im.modifiers().ctrl);
+    im.process_event(make_event(EV_KEY, 90, 0));
+    ASSERT_FALSE(im.modifiers().ctrl);
+
+    return 0;
+}
+
 TEST_MAIN_BEGIN()
     RUN_TEST(test_input_manager_letter_and_shift);
     RUN_TEST(test_input_manager_control_chars);
     RUN_TEST(test_input_manager_arrows_and_enter);
     RUN_TEST(test_input_manager_del_and_space);
+    RUN_TEST(test_input_manager_kindle_modifiers);
 TEST_MAIN_END()

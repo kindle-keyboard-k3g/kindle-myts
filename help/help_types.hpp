@@ -23,7 +23,8 @@ enum class HelpRoute : uint8_t {
     Pass,           ///< Forward to active terminal / PTY
     Consume,        ///< Intercept and discard without PTY or UI update
     OpenAfterWrite, ///< Forward current sequence to PTY, then open help
-    Redraw,         ///< Help screen updated (e.g. key pressed or tab switched)
+    RedrawFull,     ///< Full help screen redraw needed (page change or open)
+    RedrawDelta,    ///< Partial help screen redraw needed (key press highlight/status)
     Exit            ///< Close help screen and restore terminal
 };
 

@@ -40,24 +40,27 @@ public:
         if (!screen_.active()) {
             return handle_inactive_event(ev, mods);
         }
+        if (ev.type != EV_KEY) {
+            return HelpRoute::Consume;
+        }
         if (ev.value == 0) {
             return HelpRoute::Consume;
         }
-        if (is_exit_key(ev, seq)) {
+        if (is_exit_key(ev, mods, seq)) {
             screen_.close();
             return HelpRoute::Exit;
         }
         if (handle_navigation_key(ev, seq)) {
-            return HelpRoute::Redraw;
+            return HelpRoute::RedrawFull;
         }
         record_and_redraw(ev, mods, seq);
-        return HelpRoute::Redraw;
+        return HelpRoute::RedrawDelta;
     }
 
     HelpRoute after_terminal_write(std::string_view seq) noexcept {
         if (tracker_.feed(seq)) {
             screen_.open();
-            return HelpRoute::Redraw;
+            return HelpRoute::RedrawFull;
         }
         return HelpRoute::Pass;
     }
@@ -70,19 +73,22 @@ private:
         }
         if (input::KeyCatalog::is_menu_key(ev.code)) {
             screen_.open();
-            return HelpRoute::Redraw;
+            return HelpRoute::RedrawFull;
         }
         if (mods.shift && ev.code == input::KeyCatalog::CODE_H) {
             screen_.open();
-            return HelpRoute::Redraw;
+            return HelpRoute::RedrawFull;
         }
         return HelpRoute::Pass;
     }
 
-    static bool is_exit_key(const struct input_event& ev, std::string_view seq) noexcept {
+    static bool is_exit_key(const struct input_event& ev,
+                           const input::ModifierState& mods,
+                           std::string_view seq) noexcept {
         if (input::KeyCatalog::is_exit_trigger(ev.code)) return true;
         if (ev.code == input::KeyCatalog::CODE_ENTER || seq == "\r") return true;
         if (seq == "q" || ev.code == input::KeyCatalog::CODE_Q) return true;
+        if (mods.shift && ev.code == input::KeyCatalog::CODE_H) return true;
         return false;
     }
 

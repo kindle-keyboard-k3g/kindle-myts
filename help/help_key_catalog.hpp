@@ -33,7 +33,7 @@ public:
     static constexpr size_t ROW2_COUNT = 10;
     static constexpr size_t ROW3_COUNT = 10;
     static constexpr size_t SYM_COUNT = 28;
-    static constexpr size_t FN_COUNT = 12;
+    static constexpr size_t FN_COUNT = 28;
 
     static constexpr PhysicalKey ROW1[ROW1_COUNT] = {
         {16, 'Q', '!', "Q"}, {17, 'W', '@', "W"}, {18, 'E', '#', "E"},
@@ -57,30 +57,37 @@ public:
     };
 
     static constexpr SymEntry SYM_ENTRIES[SYM_COUNT] = {
-        {'Q', '!', "Exclamation"}, {'W', '@', "At sign"},
-        {'E', '#', "Hash / Pound"}, {'R', '$', "Dollar"},
-        {'T', '%', "Percent"}, {'Y', '^', "Caret"},
-        {'U', '&', "Ampersand"}, {'I', '*', "Asterisk"},
-        {'O', '(', "Left Paren"}, {'P', ')', "Right Paren"},
-        {'A', '+', "Plus"}, {'S', '-', "Minus"},
-        {'D', '_', "Underscore"}, {'F', '=', "Equals"},
-        {'G', '[', "Left Bracket"}, {'H', ']', "Right Bracket"},
-        {'J', '{', "Left Brace"}, {'K', '}', "Right Brace"},
-        {'L', '\\', "Backslash"},
-        {'Z', '|', "Pipe"}, {'X', '~', "Tilde"},
-        {'C', '`', "Backtick"}, {'V', '\'', "Single Quote"},
-        {'B', '\"', "Double Quote"}, {'N', '<', "Less Than"},
-        {'M', '>', "Greater Than"}, {'.', ';', "Semicolon"},
-        {'/', ':', "Colon"}
+        {'q', '!', "Exclamation"}, {'w', '@', "At sign"},
+        {'e', '#', "Hash / Octothorpe"}, {'r', '$', "Dollar"},
+        {'t', '%', "Percent"}, {'y', '^', "Caret"},
+        {'u', '&', "Ampersand"}, {'i', '*', "Asterisk"},
+        {'o', '(', "Left Paren"}, {'p', ')', "Right Paren"},
+        {'a', '*', "Asterisk"}, {'s', '+', "Plus"},
+        {'d', '#', "Hash"}, {'f', '-', "Minus / Dash"},
+        {'g', '_', "Underscore"}, {'h', '(', "Left Paren"},
+        {'j', ')', "Right Paren"}, {'k', '&', "Ampersand"},
+        {'l', '!', "Exclamation"}, {'D', '?', "Question mark"},
+        {'z', '~', "Tilde"}, {'x', '$', "Dollar"},
+        {'c', '|', "Pipe"}, {'v', '/', "Slash"},
+        {'b', '\\', "Backslash"}, {'n', '\"', "Double quote"},
+        {'m', '\'', "Single quote"}, {'.', ':', "Colon"}
     };
 
     static constexpr FnEntry FN_ENTRIES[FN_COUNT] = {
-        {'Q', "F1", "VT Function 1"}, {'W', "F2", "VT Function 2"},
-        {'E', "F3", "VT Function 3"}, {'R', "F4", "VT Function 4"},
-        {'T', "F5", "VT Function 5"}, {'Y', "F6", "VT Function 6"},
-        {'U', "F7", "VT Function 7"}, {'I', "F8", "VT Function 8"},
-        {'O', "F9", "VT Function 9"}, {'P', "F10", "VT Function 10"},
-        {'A', "F11", "VT Function 11"}, {'S', "F12", "VT Function 12"}
+        {'q', "F1", "VT Function 1"}, {'w', "F2", "VT Function 2"},
+        {'e', "F3", "VT Function 3"}, {'r', "F4", "VT Function 4"},
+        {'t', "F5", "VT Function 5"}, {'y', "F6", "VT Function 6"},
+        {'u', "F7", "VT Function 7"}, {'i', "F8", "VT Function 8"},
+        {'o', "F9", "VT Function 9"}, {'p', "F10", "VT Function 10"},
+        {'a', "`", "Backtick"}, {'s', "%", "Percent"},
+        {'d', "^", "Caret"}, {'f', "<", "Less Than"},
+        {'g', ">", "Greater Than"}, {'h', "[", "Left Bracket"},
+        {'j', "]", "Right Bracket"}, {'k', "=", "Equals"},
+        {'l', "F11", "VT Function 11"}, {'D', "F12", "VT Function 12"},
+        {'z', "\\t", "Tab"}, {'x', ";", "Semicolon"},
+        {'c', ",", "Comma"}, {'v', "(", "Left Paren"},
+        {'b', ")", "Right Paren"}, {'n', "{", "Left Brace"},
+        {'m', "}", "Right Brace"}, {'.', ",", "Comma"}
     };
 
     [[nodiscard]] static const char* keycode_to_name(uint16_t code) noexcept {
@@ -89,6 +96,7 @@ public:
         if (code == input::KeyCatalog::CODE_PAGE_FORWARD) return "Right<";
         if (code == input::KeyCatalog::CODE_PAGE_TURN_K3 || code == input::KeyCatalog::CODE_PAGE_TURN_DX) return "Right>";
         if (code == input::KeyCatalog::CODE_PAGE_BACK_K3 || code == input::KeyCatalog::CODE_PAGE_BACK_DX) return "Left<";
+        if (code == input::KeyCatalog::CODE_PAGE_BACK_DX) return "Left>";
         if (code == input::KeyCatalog::CODE_FIVEWAY_UP) return "Up";
         if (code == input::KeyCatalog::CODE_FIVEWAY_DOWN) return "Down";
         if (code == input::KeyCatalog::CODE_FIVEWAY_LEFT) return "Left";
@@ -97,6 +105,11 @@ public:
         if (code == input::KeyCatalog::CODE_ENTER) return "Enter";
         if (code == input::KeyCatalog::CODE_DEL) return "Del";
         if (code == input::KeyCatalog::CODE_SPACE) return "Space";
+        if (code == input::KeyCatalog::CODE_AA_CTRL_K3 || code == input::KeyCatalog::CODE_AA_CTRL_DX) return "aA / Ctrl";
+        if (code == input::KeyCatalog::CODE_SYM_K3 || code == input::KeyCatalog::CODE_SYM_DX) return "Sym";
+        if (code == input::KeyCatalog::CODE_HOME_K3 || code == input::KeyCatalog::CODE_HOME_DX) return "Home";
+        if (code == input::KeyCatalog::CODE_SHIFT_L || code == input::KeyCatalog::CODE_SHIFT_R) return "Shift";
+        if (code == input::KeyCatalog::CODE_ALT_L || code == input::KeyCatalog::CODE_ALT_R) return "Alt";
         return nullptr;
     }
 };

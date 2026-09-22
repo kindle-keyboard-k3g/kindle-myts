@@ -94,9 +94,28 @@ static int test_tracker_buffer_boundary() {
     return 0;
 }
 
+static int test_tracker_ansi_escape_discard() {
+    HelpCommandTracker tracker;
+
+    // Up arrow ANSI escape sequence followed by help\r
+    ASSERT_FALSE(tracker.feed("\033[A"));
+    ASSERT_TRUE(tracker.current_text().empty());
+    ASSERT_TRUE(tracker.feed("help\r"));
+
+    // Multi-byte split ANSI escape sequence: \033, then [B, then help\r
+    tracker.reset();
+    ASSERT_FALSE(tracker.feed("\033"));
+    ASSERT_FALSE(tracker.feed("[1;2H"));
+    ASSERT_TRUE(tracker.current_text().empty());
+    ASSERT_TRUE(tracker.feed("help\r"));
+
+    return 0;
+}
+
 TEST_MAIN_BEGIN()
     RUN_TEST(test_tracker_exact_help_trigger);
     RUN_TEST(test_tracker_non_triggers);
     RUN_TEST(test_tracker_backspace_and_control_resets);
     RUN_TEST(test_tracker_buffer_boundary);
+    RUN_TEST(test_tracker_ansi_escape_discard);
 TEST_MAIN_END()

@@ -39,13 +39,23 @@ public:
     graphics::Rect render_delta(graphics::OwnedPixmap& canvas,
                                const graphics::FontRenderer& font,
                                const HelpNavigationState& state) const noexcept {
-        if (canvas.width() <= 0 || canvas.height() <= 0) {
+        int font_h = font.glyph_height();
+        if (canvas.width() <= 0 || canvas.height() < font_h * 2) {
             return graphics::Rect(0, 0, 0, 0);
         }
-        int font_h = font.glyph_height();
         int status_y = canvas.height() - font_h - 4;
-        clear_rect(canvas, 0, status_y, canvas.width(), font_h + 4);
+        clear_rect(canvas, 0, status_y - 2, canvas.width(), font_h + 6);
         draw_status_bar(canvas, font, state, status_y);
+
+        if (state.page == HelpPage::Keypad) {
+            int kp_y = font_h + 8;
+            int kp_h = font_h * 9;
+            clear_rect(canvas, 0, kp_y, canvas.width(), kp_h);
+            draw_keypad(canvas, font, kp_y, state.last_key);
+            int dirty_h = canvas.height() - kp_y;
+            return graphics::Rect(0, kp_y, canvas.width(), dirty_h);
+        }
+
         int dirty_h = canvas.height() - (status_y - 2);
         return graphics::Rect(0, status_y - 2, canvas.width(), dirty_h);
     }
@@ -153,9 +163,18 @@ private:
             uint8_t fg = active ? 0x0F : 0x00;
             uint8_t bg = active ? 0x00 : 0x0F;
             draw_string(canvas, font, cur_x, y, "[", 0x00, 0x0F);
-            draw_string(canvas, font, cur_x + font_w, y, row[i].label, fg, bg);
-            draw_string(canvas, font, cur_x + font_w * 4, y, "]", 0x00, 0x0F);
-            cur_x += font_w * 5;
+            if (row[i].shift != '\0') {
+                char buf[4]{row[i].primary, ' ', row[i].shift, '\0'};
+                draw_string(canvas, font, cur_x + font_w, y, buf, fg, bg);
+                draw_string(canvas, font, cur_x + font_w * 4, y, "]", 0x00, 0x0F);
+                cur_x += font_w * 5;
+            } else {
+                draw_string(canvas, font, cur_x + font_w, y, row[i].label, fg, bg);
+                int label_len = static_cast<int>(std::strlen(row[i].label));
+                int pad = (label_len < 3) ? (3 - label_len) : 0;
+                draw_string(canvas, font, cur_x + font_w * (1 + label_len + pad), y, "]", 0x00, 0x0F);
+                cur_x += font_w * (2 + label_len + pad);
+            }
         }
     }
 
@@ -187,30 +206,68 @@ private:
         int font_h = font.glyph_height();
         int font_w = font.glyph_width();
         draw_string(canvas, font, 10, y, "=== FUNCTION KEYS (MENU/FN LAYER) ===");
-        draw_string(canvas, font, 10, y + font_h, "Key Fn   Description");
-        for (size_t i = 0; i < HelpKeyCatalog::FN_COUNT; ++i) {
+        draw_string(canvas, font, 10, y + font_h, "Key Fn   Description      Key Fn   Description");
+        for (size_t i = 0; i < 14 && i < HelpKeyCatalog::FN_COUNT; ++i) {
             int line_y = y + font_h * (2 + static_cast<int>(i));
-            char buf[8]{' ', HelpKeyCatalog::FN_ENTRIES[i].key, ' ', ' ', '\0'};
-            draw_string(canvas, font, 10, line_y, buf);
-            draw_string(canvas, font, 10 + font_w * 4, line_y, HelpKeyCatalog::FN_ENTRIES[i].f_label);
-            draw_string(canvas, font, 10 + font_w * 9, line_y, HelpKeyCatalog::FN_ENTRIES[i].desc);
+            draw_fn_entry(canvas, font, 10, line_y, HelpKeyCatalog::FN_ENTRIES[i]);
+            if (i + 14 < HelpKeyCatalog::FN_COUNT) {
+                draw_fn_entry(canvas, font, 10 + font_w * 26, line_y, HelpKeyCatalog::FN_ENTRIES[i + 14]);
+            }
         }
+    }
+
+    static void draw_fn_entry(graphics::OwnedPixmap& canvas, const graphics::FontRenderer& font,
+                             int x, int y, const FnEntry& entry) noexcept {
+        int font_w = font.glyph_width();
+        char buf[8]{' ', entry.key, ' ', ' ', '\0'};
+        draw_string(canvas, font, x, y, buf);
+        draw_string(canvas, font, x + font_w * 4, y, entry.f_label);
+        draw_string(canvas, font, x + font_w * 9, y, entry.desc);
     }
 
     static void draw_status_bar(graphics::OwnedPixmap& canvas, const graphics::FontRenderer& font,
                                const HelpNavigationState& state, int y) noexcept {
         int font_w = font.glyph_width();
         draw_string(canvas, font, 8, y, "Key: ");
+        int cur_x = 8 + font_w * 5;
         const char* name = HelpKeyCatalog::keycode_to_name(state.last_key.code);
         if (name != nullptr) {
-            draw_string(canvas, font, 8 + font_w * 5, y, name, 0x0F, 0x00);
+            draw_string(canvas, font, cur_x, y, name, 0x0F, 0x00);
+            cur_x += font_w * (static_cast<int>(std::strlen(name)) + 1);
         } else if (state.last_key.character >= 32) {
             char buf[2]{state.last_key.character, '\0'};
-            draw_string(canvas, font, 8 + font_w * 5, y, buf, 0x0F, 0x00);
+            draw_string(canvas, font, cur_x, y, buf, 0x0F, 0x00);
+            cur_x += font_w * 2;
         } else {
-            draw_string(canvas, font, 8 + font_w * 5, y, "---", 0x00, 0x0F);
+            draw_string(canvas, font, cur_x, y, "---", 0x00, 0x0F);
+            cur_x += font_w * 4;
         }
-        draw_string(canvas, font, 8 + font_w * 16, y, "| Press Back/Right>/q/Enter to Exit");
+
+        if (state.last_key.code > 0) {
+            char code_buf[16];
+            int n = snprintf(code_buf, sizeof(code_buf), "(#%u) ", state.last_key.code);
+            if (n > 0) {
+                draw_string(canvas, font, cur_x, y, code_buf);
+                cur_x += font_w * n;
+            }
+        }
+
+        if (state.last_key.modifiers != 0) {
+            if (state.last_key.modifiers & input::KeyCatalog::MOD_SHIFT) {
+                draw_string(canvas, font, cur_x, y, "[Shift] ");
+                cur_x += font_w * 8;
+            }
+            if (state.last_key.modifiers & input::KeyCatalog::MOD_CTRL) {
+                draw_string(canvas, font, cur_x, y, "[Ctrl] ");
+                cur_x += font_w * 7;
+            }
+            if (state.last_key.modifiers & input::KeyCatalog::MOD_SYM) {
+                draw_string(canvas, font, cur_x, y, "[Sym] ");
+                cur_x += font_w * 6;
+            }
+        }
+
+        draw_string(canvas, font, cur_x, y, "| Back/Right>/q/Enter: Exit");
     }
 };
 

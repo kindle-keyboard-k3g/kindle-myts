@@ -1,6 +1,7 @@
 #ifndef MYTS_INPUT_INPUT_MANAGER_HPP
 #define MYTS_INPUT_INPUT_MANAGER_HPP
 
+#include "input/key_catalog.hpp"
 #include <linux/input.h>
 #include <cstdint>
 #include <cstring>
@@ -71,18 +72,26 @@ private:
     static bool is_modifier(uint16_t code) noexcept {
         return code == 42 || code == 54   // Shift (L/R)
             || code == 29 || code == 97   // Ctrl (L/R)
+            || code == KeyCatalog::CODE_AA_CTRL_K3 || code == KeyCatalog::CODE_AA_CTRL_DX
             || code == 56 || code == 100  // Alt (L/R)
-            || code == 126 || code == 94; // Sym (K3 / DX)
+            || code == KeyCatalog::CODE_SYM_K3 || code == KeyCatalog::CODE_SYM_DX;
     }
 
     void update_modifier(uint16_t code, bool active) noexcept {
         if (code == 42 || code == 54) {
             mods_.shift = active;
-        } else if (code == 29 || code == 97) {
+            return;
+        }
+        if (code == 29 || code == 97 ||
+            code == KeyCatalog::CODE_AA_CTRL_K3 || code == KeyCatalog::CODE_AA_CTRL_DX) {
             mods_.ctrl = active;
-        } else if (code == 56 || code == 100) {
+            return;
+        }
+        if (code == 56 || code == 100) {
             mods_.alt = active;
-        } else if (code == 126 || code == 94) {
+            return;
+        }
+        if (code == KeyCatalog::CODE_SYM_K3 || code == KeyCatalog::CODE_SYM_DX) {
             mods_.sym = active;
         }
     }

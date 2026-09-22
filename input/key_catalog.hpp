@@ -35,6 +35,12 @@ struct KeyCatalog {
     static constexpr uint16_t CODE_SPACE = 57;
     static constexpr uint16_t CODE_Q = 16;
     static constexpr uint16_t CODE_H = 35;
+    static constexpr uint16_t CODE_HOME_K3 = 102;
+    static constexpr uint16_t CODE_HOME_DX = 98;
+    static constexpr uint16_t CODE_SHIFT_L = 42;
+    static constexpr uint16_t CODE_SHIFT_R = 54;
+    static constexpr uint16_t CODE_ALT_L = 56;
+    static constexpr uint16_t CODE_ALT_R = 100;
 
     static constexpr uint8_t MOD_NONE = 0;
     static constexpr uint8_t MOD_SHIFT = 1 << 0;
@@ -54,9 +60,11 @@ struct KeyCatalog {
         return code == CODE_SELECT_K3 || code == CODE_SELECT_DX;
     }
 
-    [[nodiscard]] static constexpr bool is_exit_trigger(uint16_t code) noexcept {
+    [[nodiscard]] static constexpr bool is_exit_trigger(uint16_t code, uint8_t modifiers = 0) noexcept {
         return is_back_key(code) || is_menu_key(code) ||
-               code == CODE_PAGE_TURN_K3 || code == CODE_PAGE_TURN_DX;
+               code == CODE_PAGE_TURN_K3 || code == CODE_PAGE_TURN_DX ||
+               code == CODE_Q || code == CODE_ENTER ||
+               (code == CODE_H && (modifiers & MOD_SHIFT) != 0);
     }
 
     [[nodiscard]] static constexpr bool is_arrow_key(uint16_t code) noexcept {
