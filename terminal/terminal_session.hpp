@@ -80,6 +80,13 @@ public:
     }
 
     /**
+     * @brief Marks all terminal rows as dirty to force complete redraw.
+     */
+    void mark_all_dirty() noexcept {
+        dirty_rows_.assign(static_cast<size_t>(rows_), true);
+    }
+
+    /**
      * @brief Current cursor row (0-indexed).
      */
     [[nodiscard]] int cursor_row() const noexcept { return cursor_row_; }
