@@ -1,4 +1,4 @@
-# kindle-myts
+# kindle myts
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Kindle%20Keyboard%20(K3%2FK3G)%20%7C%20DX-lightgrey.svg)](#hardware--platform-support)
