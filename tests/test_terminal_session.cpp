@@ -192,6 +192,23 @@ static int test_render_with_dirty_hint_skips_clean_rows() {
     return 0;
 }
 
+static int test_terminal_session_mark_all_dirty() {
+    TerminalSession term(4, 10);
+    auto initial_dirty = term.take_dirty_rows();
+    // After take_dirty_rows, all should be clean
+    auto clean_dirty = term.take_dirty_rows();
+    for (bool d : clean_dirty) {
+        ASSERT_FALSE(d);
+    }
+
+    term.mark_all_dirty();
+    auto all_dirty = term.take_dirty_rows();
+    for (bool d : all_dirty) {
+        ASSERT_TRUE(d);
+    }
+    return 0;
+}
+
 TEST_MAIN_BEGIN()
     RUN_TEST(test_terminal_session_basic_typing);
     RUN_TEST(test_terminal_session_scrolling);
@@ -204,4 +221,5 @@ TEST_MAIN_BEGIN()
     RUN_TEST(test_dirty_rows_cursor_move_marks_prev_row);
     RUN_TEST(test_dirty_rows_scroll_marks_all);
     RUN_TEST(test_render_with_dirty_hint_skips_clean_rows);
+    RUN_TEST(test_terminal_session_mark_all_dirty);
 TEST_MAIN_END()

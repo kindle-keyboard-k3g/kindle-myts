@@ -11,6 +11,8 @@
 #include "graphics/eink_display.hpp"
 #include "graphics/font_renderer.hpp"
 #include "graphics/debug_overlay.hpp"
+#include "help/help_controller.hpp"
+#include "help/help_renderer.hpp"
 #include "terminal/terminal_session.hpp"
 #include "input/input_manager.hpp"
 #include "core/event_loop.hpp"
@@ -143,6 +145,20 @@ public:
     }
 
     /**
+     * @brief Checks if help screen is currently displayed.
+     */
+    [[nodiscard]] bool is_help_active() const noexcept {
+        return help_.active();
+    }
+
+    /**
+     * @brief Accesses help controller.
+     */
+    [[nodiscard]] const help::HelpController& help_controller() const noexcept {
+        return help_;
+    }
+
+    /**
      * @brief Processes a Linux input_event and forwards produced characters to terminal PTY.
      * @param ev Input event.
      * @return Generated character sequence.
@@ -150,12 +166,38 @@ public:
     std::string_view handle_input_event(const struct input_event& ev) {
         metrics_.record_input_event();
         std::string_view seq = input_.process_event(ev);
+        help::HelpRoute route = help_.before_terminal_write(ev, input_.modifiers(), seq);
+
+        if (route == help::HelpRoute::Exit) {
+            restore_terminal_display();
+            return {};
+        }
+        if (route == help::HelpRoute::RedrawFull) {
+            render_help(/*full=*/true);
+            return {};
+        }
+        if (route == help::HelpRoute::RedrawDelta) {
+            render_help(/*full=*/false);
+            return {};
+        }
+        if (route == help::HelpRoute::Consume) {
+            return {};
+        }
+
         if (!seq.empty() && session_.pty_fd() >= 0) {
             ssize_t written = ::write(session_.pty_fd(), seq.data(), seq.size());
             if (written > 0) {
                 metrics_.record_pty_write(static_cast<size_t>(written));
             }
         }
+
+        if (!seq.empty()) {
+            help::HelpRoute after = help_.after_terminal_write(seq);
+            if (after == help::HelpRoute::RedrawFull) {
+                render_help(/*full=*/true);
+            }
+        }
+
         return seq;
     }
 
@@ -184,10 +226,7 @@ public:
             dirty = graphics::Rect{ux1, uy1, ux2 - ux1, uy2 - uy1};
         }
 
-        uint8_t* dst = driver_.surface_data();
-        if (dst != nullptr && canvas_.data() != nullptr) {
-            std::memcpy(dst, canvas_.data(), canvas_.size());
-        }
+        copy_canvas_to_driver();
 
         display_.mark_dirty(dirty);
         bool was_full = (display_.partial_updates_count() + 1 >= display_.refresh_config().partial_limit);
@@ -206,10 +245,7 @@ public:
         }
 
         // Wipe full screen on initial startup to clear prior UI / book content
-        uint8_t* dst = driver_.surface_data();
-        if (dst != nullptr && canvas_.data() != nullptr) {
-            std::memcpy(dst, canvas_.data(), canvas_.size());
-        }
+        copy_canvas_to_driver();
         display_.refresh_full();
 
         render_frame();
@@ -220,7 +256,9 @@ public:
             ssize_t bytes = ::read(fd, buf, sizeof(buf));
             if (bytes > 0) {
                 feed_terminal_output(std::string_view(buf, static_cast<size_t>(bytes)));
-                render_frame();
+                if (!help_.active()) {
+                    render_frame();
+                }
             } else if (bytes <= 0) {
                 MYTS_LOG_INFO("PTY", "PTY closed or EOF reached");
                 loop_.stop();
@@ -280,6 +318,33 @@ private:
         return graphics::Rect{0, first * gh, driver_.width(), (last - first + 1) * gh};
     }
 
+    void render_help(bool full = true) {
+        graphics::Rect dirty = full
+            ? help_renderer_.render_full(canvas_, font_, help_.screen().state())
+            : help_renderer_.render_delta(canvas_, font_, help_.screen().state());
+        copy_canvas_to_driver();
+        display_.mark_dirty(dirty);
+        display_.flush();
+    }
+
+    void restore_terminal_display() {
+        canvas_.clear(0xFF);
+        session_.mark_all_dirty();
+        session_.render(canvas_, font_, /*show_cursor=*/true, nullptr);
+        if (debug_cfg_.enable_overlay) {
+            overlay_.render(canvas_, font_, metrics_.snapshot(), 0, 0);
+        }
+        copy_canvas_to_driver();
+        display_.refresh_full();
+    }
+
+    void copy_canvas_to_driver() noexcept {
+        uint8_t* dst = driver_.surface_data();
+        if (dst != nullptr && canvas_.data() != nullptr) {
+            std::memcpy(dst, canvas_.data(), canvas_.size());
+        }
+    }
+
     display::HardwareEinkDriver driver_;
     graphics::EinkDisplay display_;
     graphics::FontRenderer font_;
@@ -291,6 +356,8 @@ private:
     DebugConfig debug_cfg_{};
     core::MetricsCollector metrics_{};
     graphics::DebugOverlay overlay_{};
+    help::HelpController help_{};
+    help::HelpRenderer help_renderer_{};
 };
 
 } // namespace app

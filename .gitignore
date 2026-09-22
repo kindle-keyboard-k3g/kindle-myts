@@ -19,6 +19,9 @@ tests/test_application
 tests/test_logger
 tests/test_metrics
 tests/test_debug_overlay
+tests/test_help_command_tracker
+tests/test_help_navigation
+tests/test_help_renderer
 myts-ng
 myts-ng-dbg
 myts-ng-kindle
@@ -27,4 +30,5 @@ tools/matrix
 tools/matrix-kindle
 myts.zip
 .worktrees/
+.superpowers/
 
