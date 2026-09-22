@@ -1,122 +1,146 @@
-# Modern C++ Stack Architecture & Implementation Plan for `kindle-myts`
+# TDD Implementation Plan: Dedicated Debug Version & Diagnostics for `kindle-myts`
 
 ## 1. Context & Objectives
 
-The legacy `kindle-myts` terminal emulator was written in 2010 in procedural C, targeting the Kindle 3 (Freescale i.MX353 ARMv6 @ 532 MHz, 128 MB RAM, Epson Broadsheet EPD controller). While fast, the legacy C codebase suffers from:
-- Raw pointer lifecycle management without RAII, risking leaks and dangling pointers.
-- Mixed concerns: terminal emulation, PTY communication, E-Ink refresh ioctls, and input event parsing are tightly coupled in global structs (`struct my_args __me`).
-- Inability to unit-test critical paths without Kindle hardware kernel headers (`linux/einkfb.h`, `/dev/fb0`, `/dev/input/event*`).
+`kindle-myts` runs both as legacy C (`myts`) and modern C++17/20 (`myts-ng`) on Freescale i.MX353 ARMv6 Kindle hardware (Kindle 3 / Kindle DX) as well as developer host workstations.
+Currently:
+- The release binary compiles with `-Os -DNODEBUG -fno-exceptions -fno-rtti` to achieve minimal size (~23 KB stripped) and avoid performance degradation on the 532 MHz CPU.
+- Debugging on Kindle hardware or during headless integration is difficult without structured runtime logging, frame refresh metrics, or dirty area diagnostics.
+- The user requested a dedicated **Debug Version** planned using **Test-Driven Development (`/tdd`)** and **superpowers**, ensuring that debug instrumentation has zero cost in production release builds while providing rich diagnostics in debug builds.
 
-Recent commits established modern C++ foundational modules (tested at 100% pass rate under AddressSanitizer):
-1. `core/raii.hpp`: `UniqueFd`, `MemoryMapping`
-2. `core/byte_buffer.hpp`: `ByteView`, `ByteBuffer`
-3. `core/string_builder.hpp`: `StringBuilder`
-4. `core/event_loop.hpp`: allocation-free `select()` dispatcher with timers
-5. `graphics/geometry.hpp`: `Point`, `Rect`
-6. `graphics/pixmap.hpp`: 4bpp packed raster surface, clipping, blit
-7. `graphics/eink_display.hpp`: `IEinkDriver`, dirty region accumulation, even horizontal alignment for 4bpp nibble pairs
-8. `config/config.hpp`: case-insensitive INI configuration parser
-9. `terminal/ansi_parser.hpp`: VT100 / CSI stream state machine with `IAnsiHandler`
-
-This plan details the modernization roadmap to replace legacy C entry points (`terminal.c`, `screen.c`, `launchpad.c`, `myts.c`) with a modern C++ stack (C++20 for host testing, C++17 embedded profile with `-fno-exceptions -fno-rtti` for ARMv6), adhering strictly to Test-Driven Development (`/tdd`), structured Doxygen docstrings, and isolated git worktrees.
+This plan specifies the architecture and phased TDD slices to introduce:
+1. A zero-allocation modern C++ logging & diagnostics framework (`core/logger.hpp`).
+2. Performance & display telemetry metrics collector (`core/metrics.hpp`).
+3. CLI argument parsing for debug options in `main.cpp` (`--debug`, `--log-level`, `--log-file`, `--metrics`, `--dry-run`).
+4. Optional on-screen debug status bar / overlay rendering (`graphics/debug_overlay.hpp`).
+5. Dedicated build targets (`myts-ng-dbg`, `myts-dbg`) and automated sanitizer test suites.
 
 ---
 
-## 2. Target Architecture & Seams
+## 2. Architecture & Seams
 
 ```
-+-------------------------------------------------------------------------+
-|                              myts (C++ Entry)                           |
-+-------------------------------------------------------------------------+
-       |                                      |                     |
-       v                                      v                     v
-+------------------+                 +------------------+   +------------------+
-|  InputManager    |                 |   EventLoop      |   |   EinkDisplay    |
-| (input/          |                 |  (core/          |   |  (graphics/      |
-|  input_manager)  |                 |   event_loop)    |   |   eink_display)  |
-+------------------+                 +------------------+   +------------------+
-       |                                      |                     |
-       | Key events                           | Poll descriptors    | Partial refresh
-       v                                      v                     v
-+-------------------------------------------------------+   +------------------+
-|                 TerminalSession                       |   | HardwareEink     |
-| (terminal/terminal_session.hpp)                       |   | (display/        |
-| - PTY master/slave (UniqueFd)                         |   |  eink_driver)    |
-| - Screen grid buffer (chars + attributes)             |   | - /dev/fb0       |
-| - AnsiParser stream decoder (IAnsiHandler)            |   | - einkfb ioctl   |
-| - Render to PixmapView using FontRenderer             |   +------------------+
-+-------------------------------------------------------+
++--------------------------------------------------------------------------+
+|                       Application / main.cpp                             |
+|  - Parses debug flags (--debug, --log-level, --log-file, --metrics)      |
+|  - Configures global/injected Logger & MetricsCollector                  |
++--------------------------------------------------------------------------+
+         |                                                 |
+         v                                                 v
++------------------+                             +--------------------+
+|  core::Logger    |                             |  core::Metrics     |
+| - Timestamping   |                             | - Refresh counts   |
+| - Log levels     |                             | - Bytes read/write |
+| - Tagged domains |                             | - Dirty rect stats |
+| - Stderr or File |                             | - Frame durations  |
++------------------+                             +--------------------+
+         |                                                 |
+         +------------------------+------------------------+
+                                  |
+                                  v
++--------------------------------------------------------------------------+
+|                     graphics::DebugOverlay                               |
+|  - Renders compact monospace telemetry banner onto 4bpp canvas:          |
+|    "FPS: 12 | REFRESH: 45 | DIRTY: 120x80@(0,24) | PTY: 1.4KB"           |
+|  - Stripped out completely when DEBUG is not defined                     |
++--------------------------------------------------------------------------+
 ```
 
-### Seam 1: Terminal Session & Screen Buffer (`terminal/terminal_session.hpp`)
-- **Responsibility**: Manages the 2D grid of characters and attributes (rows × cols), cursor position, scrollback history, and PTY I/O.
-- **Seam**:
-  - Implements `IAnsiHandler` from `terminal/ansi_parser.hpp`.
-  - Exposes `feed_pty_input(std::string_view data)`.
-  - Exposes `char_at(int row, int col)`, `attr_at(int row, int col)`.
-  - Exposes `render(graphics::PixmapView& dst, const graphics::FontRenderer& font)`.
+### Seam 1: Diagnostic Logging Subsystem (`core/logger.hpp`)
+- **Responsibility**: Zero-allocation formatted logging with configurable severity thresholds (`TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`), microsecond/millisecond timestamps, subsystem tags (`[PTY]`, `[EINK]`, `[INPUT]`, `[APP]`, `[LOOP]`), and dual sink support (stderr or log file).
+- **Public Seam**:
+  - `Logger::instance()` / dependency-injected `Logger`.
+  - `set_level(LogLevel level)`.
+  - `set_output_fd(int fd)` or `set_output_file(const char* filepath)`.
+  - `log(LogLevel level, std::string_view tag, std::string_view message)`.
+  - Macro wrappers `MYTS_LOG_DEBUG(tag, msg)`, `MYTS_LOG_INFO(tag, msg)` compiling to no-ops when `-DNODEBUG` is set.
 
-### Seam 2: BDF / Hex Font Renderer (`graphics/font_renderer.hpp`)
-- **Responsibility**: Parses Kindle hex bitmap fonts (`ter-u12n.hex`) into compact glyph bitmaps and renders them into 4bpp packed surfaces.
-- **Seam**:
-  - `load_hex_data(std::string_view hex_content)`.
-  - `glyph(uint32_t codepoint) -> std::optional<GlyphBitmap>`.
-  - `draw_char(graphics::PixmapView& dst, int x, int y, uint32_t codepoint, uint8_t fg, uint8_t bg)`.
+### Seam 2: Performance & Frame Telemetry Metrics (`core/metrics.hpp`)
+- **Responsibility**: Tracks cumulative and per-frame metrics for E-Ink screen flushes, dirty bounding boxes, key input counts, and PTY I/O byte counts.
+- **Public Seam**:
+  - `record_refresh(const graphics::Rect& dirty_area, bool full_flash)`.
+  - `record_pty_read(size_t bytes)`, `record_pty_write(size_t bytes)`.
+  - `record_input_event()`.
+  - `snapshot() -> MetricsSnapshot`.
+  - `format_summary(core::StringBuilder& out) const`.
 
-### Seam 3: Input Manager & Key Translation (`input/input_manager.hpp`)
-- **Responsibility**: Decodes Linux input events (`struct input_event`) from Kindle keypad, volume buttons, and 5-way joystick without hardware locks.
-- **Seam**:
-  - `process_event(const struct input_event& ev)`.
-  - Key translation matrix: Shift, Alt/Fn, Sym modes.
-  - Callback sink: `on_key_press(std::string_view key_sequence)`.
+### Seam 3: On-Screen Framebuffer Debug Overlay (`graphics/debug_overlay.hpp`)
+- **Responsibility**: Renders diagnostic metrics directly onto the 4bpp display canvas (e.g. top or bottom 12px banner) using `FontRenderer` without corrupting terminal grid state.
+- **Public Seam**:
+  - `draw_overlay(OwnedPixmap& canvas, const FontRenderer& font, const MetricsSnapshot& metrics)`.
 
-### Seam 4: Hardware E-Ink Driver (`display/hardware_eink_driver.hpp`)
-- **Responsibility**: Concrete implementation of `IEinkDriver` interfacing with `/dev/fb0` and `FBIO_EINK_UPDATE_DISPLAY_AREA`.
-- **Seam**:
-  - Wraps framebuffer mapping with `core::MemoryMapping`.
-  - Invokes `FBIO_EINK_UPDATE_DISPLAY_AREA` via `ioctl`.
-  - Automatically falls back to mock buffer during host testing without Kindle hardware.
-
-### Seam 5: Modern Application Entry (`app/application.hpp` & `main.cpp`)
-- **Responsibility**: Top-level application coordinator linking `EventLoop`, `InputManager`, `TerminalSession`, and `EinkDisplay`. Replaces legacy `myts.c`.
+### Seam 4: CLI Debug Flag Integration & Application Wiring (`main.cpp`, `app/application.hpp`)
+- **Responsibility**: Parses command line arguments and switches `Application` into debug mode, configuring file logging and metrics reporting.
+- **Public Seam**:
+  - `DebugConfig parse_args(int argc, char** argv)`.
+  - `Application::enable_debug(const DebugConfig& cfg)`.
 
 ---
 
-## 3. Phased Implementation Plan (TDD Vertical Slices)
+## 3. Phased TDD Implementation Plan (Red → Green → Refactor)
 
-### Phase 1: Font Renderer (`graphics/font_renderer.hpp`)
-- **Red Phase**: Write `tests/test_font_renderer.cpp`:
-  - Test hex glyph string parsing (e.g., `"0041:00003c66667e66660000"` for `'A'`).
-  - Test rendering glyph into a 4bpp `OwnedPixmap`.
-- **Green Phase**: Implement `graphics/font_renderer.hpp` with Doxygen docstrings.
-- **Verification**: `make test` & `make test-asan`.
+Following the `/tdd` skill rules:
+- Red before green: author failing test suite before implementation.
+- One vertical slice per cycle.
+- Verify each slice with `make test` and `make test-asan`.
 
-### Phase 2: Terminal Screen Buffer & Session (`terminal/terminal_session.hpp`)
-- **Red Phase**: Write `tests/test_terminal_session.cpp`:
-  - Test cursor movement, character insertion, newline scrolling, and line wrap.
-  - Test ANSI sequence handling via `AnsiParser` integration.
-  - Test rendering grid to `PixmapView` via `FontRenderer`.
-- **Green Phase**: Implement `terminal/terminal_session.hpp` with Doxygen docstrings.
-- **Verification**: `make test` & `make test-asan`.
+### Phase 1: Core Diagnostic Logger (`core/logger.hpp`)
+- **Red Phase**:
+  - Create `tests/test_logger.cpp`:
+    - Test log level filtering (e.g., `DEBUG` suppressed when level is `INFO`).
+    - Test formatted log entry formatting (timestamp + tag + level + message).
+    - Test file output redirection via `UniqueFd`.
+    - Test zero-allocation compile-time elimination when `NODEBUG` is defined.
+- **Green Phase**:
+  - Implement `core/logger.hpp` with structured Doxygen docstrings.
+  - Add `tests/test_logger` to `Makefile` and run under AddressSanitizer.
+- **Verification**: `tests/test_logger` passing 100%.
 
-### Phase 3: Input Keycode & Modifier Translation (`input/input_manager.hpp`)
-- **Red Phase**: Write `tests/test_input_manager.cpp`:
-  - Feed synthetic `struct input_event` (press 'A', Shift+'A', 5-way navigation, volume keys).
-  - Test escape sequence generation (`\033[A` for Up, etc.).
-- **Green Phase**: Implement `input/input_manager.hpp` with Doxygen docstrings.
-- **Verification**: `make test` & `make test-asan`.
+### Phase 2: Metrics Collector (`core/metrics.hpp`)
+- **Red Phase**:
+  - Create `tests/test_metrics.cpp`:
+    - Test recording partial and full refreshes.
+    - Test dirty area accumulator and bounding box expansion.
+    - Test PTY byte count accounting.
+    - Test `format_summary` output.
+- **Green Phase**:
+  - Implement `core/metrics.hpp` with Doxygen docstrings.
+  - Add `tests/test_metrics` to `Makefile`.
+- **Verification**: `tests/test_metrics` passing 100%.
 
-### Phase 4: Modern Application Assembly (`main.cpp` & `app/application.hpp`)
-- Assemble all subsystems into a single binary (`myts-ng` or `myts`).
-- Update `Makefile` with clean dual host/target rules.
-- Run complete test suite and sanitizers.
+### Phase 3: Visual Debug Overlay Renderer (`graphics/debug_overlay.hpp`)
+- **Red Phase**:
+  - Create `tests/test_debug_overlay.cpp`:
+    - Test drawing status banner into 4bpp `OwnedPixmap`.
+    - Test coordinate clipping at screen margins.
+    - Test string formatting for metrics snapshot without heap allocations.
+- **Green Phase**:
+  - Implement `graphics/debug_overlay.hpp` with Doxygen docstrings.
+  - Add `tests/test_debug_overlay` to `Makefile`.
+- **Verification**: `tests/test_debug_overlay` passing 100%.
+
+### Phase 4: CLI Configuration & Application Diagnostics Integration
+- **Red Phase**:
+  - Author test cases in `tests/test_application.cpp` for debug mode startup and metrics telemetry.
+- **Green Phase**:
+  - Update `main.cpp` to parse `--debug`, `--verbose`, `--log-file`, `--metrics`, `--dry-run`.
+  - Wire `Logger`, `MetricsCollector`, and `DebugOverlay` into `app/application.hpp`.
+  - Update `Makefile` to produce dedicated debug target:
+    - `myts-ng-dbg`: Compiled with `-g3 -O0 -DDEBUG -UNDEBUG` and symbol tables.
+    - `myts-dbg`: Legacy C compiled with `-g3 -O0 -DDEBUG -UNDEBUG`.
+- **Verification**:
+  - Run full test suite: `make test` & `make test-asan`.
+  - Verify build targets: `make myts-ng-dbg` and `make myts-ng`.
 
 ---
 
-## 4. Verification & Testing
+## 4. Verification & Validation Plan
 
-Every vertical slice must pass:
-1. **Unit Tests**: `make test` on host platform (x86_64).
-2. **Sanitizers**: `make test-asan` (AddressSanitizer + UndefinedBehaviorSanitizer).
-3. **Embedded Constraint Check**: Compile with `-fno-exceptions -fno-rtti -std=c++17` to guarantee zero heavy C++ runtime dependencies on ARMv6.
-4. **Git Workflow**: Execute in dedicated `.worktrees/` branches, rebase against `origin/master`, and merge via `--no-ff` directly without opening PRs.
+1. **Unit Testing (`make test`)**:
+   - 17 total test suites (all 14 existing + `test_logger`, `test_metrics`, `test_debug_overlay`).
+2. **Sanitizers (`make test-asan`)**:
+   - AddressSanitizer + UndefinedBehaviorSanitizer running against all debug and release modules.
+3. **Zero Overhead In Release (`make myts-ng`)**:
+   - Verify that release binary `myts-ng` remains small (< 30 KB stripped) and has all debug macros compiled out.
+4. **Git Workflow**:
+   - Implement in clean vertical slices, commit directly to default branch (`master`), run full validation suite before push.

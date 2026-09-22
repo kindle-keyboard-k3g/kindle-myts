@@ -8,6 +8,10 @@ STRIP ?= strip
 CFLAGS ?= -Os -Wall -Wextra
 CXXFLAGS ?= -std=c++17 -Os -Wall -Wextra -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections -fno-unwind-tables -fno-asynchronous-unwind-tables
 
+# Debug compiler flags
+CFLAGS_DEBUG = -Wall -Wextra -g3 -O0 -I. -DDEBUG -UNDEBUG
+CXXFLAGS_DEBUG = -std=c++17 -Wall -Wextra -g3 -O0 -I. -DDEBUG -UNDEBUG -fno-exceptions -fno-rtti
+
 HOST_CFLAGS = -Wall -Wextra -g3 -O0 -I. -DNODEBUG
 HOST_CXXFLAGS = -std=c++20 -Wall -Wextra -Wpedantic -g3 -O0 -I. -DNODEBUG -fno-exceptions -fno-rtti
 
@@ -35,6 +39,9 @@ myts: $(OBJS)
 	$(CC) $(CFLAGS) -o myts $(OBJS) $(LDFLAGS)
 	$(STRIP) $@
 
+myts-dbg: $(SRCS)
+	$(CC) $(CFLAGS_DEBUG) -o $@ $^ $(LDFLAGS)
+
 $(OBJS): myts.h
 terminal.o: terminal.h
 
@@ -51,12 +58,15 @@ myts.zip: $(PUB) myts-ng
 	rm -rf myts-bundle
 
 clean:
-	rm -rf *lll myts myts-ng *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/*.o
+	rm -rf *lll myts myts-ng myts-dbg myts-ng-dbg *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay tests/*.o
 
-TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application
+TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay
 
 myts-ng: main.cpp
 	$(CXX) $(CXXFLAGS) -I. -o $@ $^
+
+myts-ng-dbg: main.cpp
+	$(CXX) $(CXXFLAGS_DEBUG) -I. -o $@ $^
 
 tests/test_dynstring: tests/test_dynstring.c dynstring.c
 	$(CC) $(TEST_CFLAGS) -o $@ $^
@@ -100,6 +110,15 @@ tests/test_input_manager: tests/test_input_manager.cpp
 tests/test_application: tests/test_application.cpp
 	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
 
+tests/test_logger: tests/test_logger.cpp
+	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
+
+tests/test_metrics: tests/test_metrics.cpp
+	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
+
+tests/test_debug_overlay: tests/test_debug_overlay.cpp
+	$(CXX) $(TEST_CXXFLAGS) -o $@ $^
+
 test: $(TEST_BINS)
 	@echo "Running complete test suite..."
 	@tests/test_dynstring
@@ -116,6 +135,9 @@ test: $(TEST_BINS)
 	@tests/test_terminal_session
 	@tests/test_input_manager
 	@tests/test_application
+	@tests/test_logger
+	@tests/test_metrics
+	@tests/test_debug_overlay
 	@echo "All tests passed successfully!"
 
 test-asan:
@@ -134,6 +156,9 @@ test-asan:
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_terminal_session tests/test_terminal_session.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_input_manager tests/test_input_manager.cpp
 	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_application tests/test_application.cpp
+	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_logger tests/test_logger.cpp
+	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_metrics tests/test_metrics.cpp
+	$(CXX) $(ASAN_CXXFLAGS) -o tests/test_debug_overlay tests/test_debug_overlay.cpp
 	@echo "Running test suite under AddressSanitizer..."
 	@tests/test_dynstring
 	@tests/test_config
@@ -149,11 +174,14 @@ test-asan:
 	@tests/test_terminal_session
 	@tests/test_input_manager
 	@tests/test_application
+	@tests/test_logger
+	@tests/test_metrics
+	@tests/test_debug_overlay
 	@echo "All sanitizer tests passed!"
 
 # conversion
 # hexdump -e '"\n\t" 8/1 "%3d, "'
 # DO NOT DELETE
 
-%.table: codepage.sh 
+%.table: codepage.sh
 	./codepage.sh $*

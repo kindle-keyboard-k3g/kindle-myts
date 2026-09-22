@@ -56,7 +56,33 @@ static int test_application_lifecycle() {
     return 0;
 }
 
+static int test_application_debug_mode() {
+    Application app(/*fb_path=*/"/dev/nonexistent_fb_test_device",
+                    /*font_path=*/"ter-u12n.hex",
+                    /*rows=*/24, /*cols=*/80);
+
+    ASSERT_TRUE(app.init());
+
+    DebugConfig cfg;
+    cfg.enable_debug = true;
+    cfg.enable_overlay = true;
+    cfg.level = core::LogLevel::Debug;
+
+    app.configure_debug(cfg);
+    ASSERT_TRUE(app.is_debug_enabled());
+
+    // Feed terminal output & render
+    app.feed_terminal_output("Testing Debug Mode Telemetry\r\n");
+    app.render_frame();
+
+    const auto& metrics = app.metrics().snapshot();
+    ASSERT_TRUE(metrics.partial_refreshes > 0 || metrics.full_refreshes > 0);
+
+    return 0;
+}
+
 TEST_MAIN_BEGIN()
     RUN_TEST(test_hardware_eink_driver_fallback);
     RUN_TEST(test_application_lifecycle);
+    RUN_TEST(test_application_debug_mode);
 TEST_MAIN_END()

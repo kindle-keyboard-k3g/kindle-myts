@@ -1,12 +1,21 @@
+/**
+ * @file application.hpp
+ * @brief Top-level application coordinator linking EventLoop, TerminalSession,
+ * InputManager, EinkDisplay, and Diagnostics Subsystem.
+ */
+
 #ifndef MYTS_APP_APPLICATION_HPP
 #define MYTS_APP_APPLICATION_HPP
 
 #include "display/hardware_eink_driver.hpp"
 #include "graphics/eink_display.hpp"
 #include "graphics/font_renderer.hpp"
+#include "graphics/debug_overlay.hpp"
 #include "terminal/terminal_session.hpp"
 #include "input/input_manager.hpp"
 #include "core/event_loop.hpp"
+#include "core/logger.hpp"
+#include "core/metrics.hpp"
 
 #include <linux/input.h>
 #include <string_view>
@@ -15,6 +24,18 @@
 
 namespace myts {
 namespace app {
+
+/**
+ * @struct DebugConfig
+ * @brief Configuration parameters for runtime diagnostics and telemetry.
+ */
+struct DebugConfig {
+    bool enable_debug{false};
+    bool enable_overlay{false};
+    bool enable_metrics{false};
+    core::LogLevel level{core::LogLevel::Info};
+    const char* log_file{nullptr};
+};
 
 /**
  * @brief Top-level application coordinator linking EventLoop, TerminalSession, InputManager, and EinkDisplay.
@@ -39,6 +60,44 @@ public:
           session_(rows, cols),
           canvas_(driver_.width(), driver_.height()),
           font_path_(font_path) {}
+
+    /**
+     * @brief Configures runtime diagnostic settings and logging sinks.
+     */
+    void configure_debug(const DebugConfig& cfg) {
+        debug_cfg_ = cfg;
+        core::Logger::instance().set_level(cfg.level);
+
+        if (cfg.log_file != nullptr && cfg.log_file[0] != '\0') {
+            int fd = ::open(cfg.log_file, O_WRONLY | O_CREAT | O_APPEND, 0644);
+            if (fd >= 0) {
+                core::Logger::instance().set_output_fd(fd);
+            }
+        }
+
+        MYTS_LOG_INFO("APP", "Debug diagnostics initialized");
+    }
+
+    /**
+     * @brief Checks if debug mode is active.
+     */
+    [[nodiscard]] bool is_debug_enabled() const noexcept {
+        return debug_cfg_.enable_debug;
+    }
+
+    /**
+     * @brief Accesses metrics collector.
+     */
+    [[nodiscard]] core::MetricsCollector& metrics() noexcept {
+        return metrics_;
+    }
+
+    /**
+     * @brief Accesses metrics collector (const).
+     */
+    [[nodiscard]] const core::MetricsCollector& metrics() const noexcept {
+        return metrics_;
+    }
 
     /**
      * @brief Initializes font, canvas surface, and session subshell.
@@ -76,6 +135,7 @@ public:
      * @brief Feeds external stream slice into terminal emulator.
      */
     void feed_terminal_output(std::string_view data) {
+        metrics_.record_pty_read(data.size());
         session_.feed_input(data);
     }
 
@@ -85,10 +145,13 @@ public:
      * @return Generated character sequence.
      */
     std::string_view handle_input_event(const struct input_event& ev) {
+        metrics_.record_input_event();
         std::string_view seq = input_.process_event(ev);
         if (!seq.empty() && session_.pty_fd() >= 0) {
             ssize_t written = ::write(session_.pty_fd(), seq.data(), seq.size());
-            (void)written;
+            if (written > 0) {
+                metrics_.record_pty_write(static_cast<size_t>(written));
+            }
         }
         return seq;
     }
@@ -99,12 +162,18 @@ public:
     void render_frame() {
         session_.render(canvas_, font_, /*show_cursor=*/true);
 
+        if (debug_cfg_.enable_overlay) {
+            overlay_.render(canvas_, font_, metrics_.snapshot(), 0, 0);
+        }
+
         uint8_t* dst = driver_.surface_data();
         if (dst != nullptr && canvas_.data() != nullptr) {
             std::memcpy(dst, canvas_.data(), canvas_.size());
         }
 
-        display_.mark_dirty(graphics::Rect(0, 0, driver_.width(), driver_.height()));
+        graphics::Rect dirty(0, 0, driver_.width(), driver_.height());
+        display_.mark_dirty(dirty);
+        metrics_.record_refresh(dirty, /*full_flash=*/false);
         display_.flush();
     }
 
@@ -124,7 +193,7 @@ public:
             char buf[1024];
             ssize_t bytes = ::read(fd, buf, sizeof(buf));
             if (bytes > 0) {
-                session_.feed_input(std::string_view(buf, static_cast<size_t>(bytes)));
+                feed_terminal_output(std::string_view(buf, static_cast<size_t>(bytes)));
                 render_frame();
             } else if (bytes <= 0) {
                 loop_.stop();
@@ -143,6 +212,9 @@ private:
     core::EventLoop loop_;
     graphics::OwnedPixmap canvas_;
     const char* font_path_{"ter-u12n.hex"};
+    DebugConfig debug_cfg_{};
+    core::MetricsCollector metrics_{};
+    graphics::DebugOverlay overlay_{};
 };
 
 } // namespace app

@@ -29,6 +29,20 @@ struct Rect {
         : x(rx), y(ry), width(rw), height(rh) {}
 
     /**
+     * @brief Right edge coordinate (x + width).
+     */
+    [[nodiscard]] constexpr int right() const noexcept {
+        return x + width;
+    }
+
+    /**
+     * @brief Bottom edge coordinate (y + height).
+     */
+    [[nodiscard]] constexpr int bottom() const noexcept {
+        return y + height;
+    }
+
+    /**
      * @brief Checks if rectangle has non-positive area.
      * @return true if width <= 0 or height <= 0.
      */
