@@ -28,51 +28,92 @@
 #ifndef _TERMINAL_H_
 #define _TERMINAL_H_
 
-/*
- * terminal support for kiterm and launchpad.
- * The routines support creation of a terminal session,
- * various manipulations, sending characters to the terminal,
- * and exporting the framebuffer.
- */
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/*
- * term_new creates a session, and possibly specifies a callback to invoke
- * on special events (typically destruction).
+/* Forward declaration */
+struct sess;
+
+/**
+ * @brief Creates a new terminal session with PTY subshell, grid buffers, and scrollback.
+ * @param cmd Initial command to execute (e.g. "/bin/sh").
+ * @param name Unique identifier name for session.
+ * @param rows Screen rows.
+ * @param cols Screen columns.
+ * @param sb_lines Scrollback buffer line capacity.
+ * @param cb Callback invoked on session exit/destruction.
+ * @return Allocated struct sess pointer, or NULL on failure.
  */
 struct sess *term_new(char *cmd, const char *name,
 	int rows, int cols, int sb_lines, void (*cb)(struct sess *));
 
-/* lookup a session by name */
+/**
+ * @brief Finds an active terminal session by name.
+ * @param name Name identifier.
+ * @return Matching struct sess pointer, or NULL if not found.
+ */
 struct sess *term_find(const char *name);
 
-/* return the name */
+/**
+ * @brief Retrieves the assigned name of a session.
+ * @param s Terminal session pointer.
+ * @return C string session name.
+ */
 const char *term_name(struct sess *s);
 
-/* send nul-terminated string to the terminal */
-int term_keyin(struct sess *, char *k);
+/**
+ * @brief Injects keyboard input sequence directly into session's PTY master descriptor.
+ * @param s Terminal session.
+ * @param k Nul-terminated character sequence.
+ * @return Number of bytes written, or negative on error.
+ */
+int term_keyin(struct sess *s, char *k);
 
-/* send a signal to the terminal session */
+/**
+ * @brief Sends a POSIX signal to the child process running inside the terminal session.
+ * @param sh Terminal session.
+ * @param sig Signal number (e.g. SIGINT, SIGHUP, SIGTERM).
+ * @return Result of kill() syscall.
+ */
 int term_kill(struct sess *sh, int sig);
 
-/*
- * terminal state. The flags can be used to update modified, callback, name
- * when calling term_state(s, ptr) with a non-null ptr.
- * For convenience, term_state() returns the 'modified' state.
+/**
+ * @enum term_state_flags
+ * @brief Bit flags indicating which fields to update when calling term_state.
  */
 enum { TS_MOD = 1, TS_CB = 2, TS_NAME = 4 };
+
+/**
+ * @struct term_state
+ * @brief Snapshot of terminal emulator dimensions, screen buffer, and cursor state.
+ */
 struct term_state {
-	int flags;
-	int modified, rows, cols, cur;
-	int pid;
-    int top;
-	void (*cb)(struct sess *);
-	char *name;
-	char *data;
-    char *attr;
-	char *sb_data;
-    char *sb_attr;
+	int flags;                   /**< Update mask flags (TS_MOD, TS_CB, TS_NAME) */
+	int modified;                /**< Dirty flag indicating visual updates */
+	int rows;                    /**< Grid rows */
+	int cols;                    /**< Grid cols */
+	int cur;                     /**< Linear cursor offset (row * cols + col) */
+	int pid;                     /**< Child process PID */
+	int top;                     /**< Top visible line offset */
+	void (*cb)(struct sess *);   /**< Event callback */
+	char *name;                  /**< Session name */
+	char *data;                  /**< Character grid memory */
+	char *attr;                  /**< Cell attributes memory */
+	char *sb_data;               /**< Scrollback character memory */
+	char *sb_attr;               /**< Scrollback attribute memory */
 };
+
+/**
+ * @brief Queries or updates the snapshot state of a terminal session.
+ * @param sh Terminal session.
+ * @param ptr Pointer to term_state struct to fill or apply.
+ * @return Dirty/modified status (non-zero if modified).
+ */
 int term_state(struct sess *sh, struct term_state *ptr);
 
+#ifdef __cplusplus
+}
+#endif
 
-#endif /* _TERMINAL_H* */
+#endif /* _TERMINAL_H_ */

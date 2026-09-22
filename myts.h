@@ -48,6 +48,10 @@ destructor, and private data.
 #include <netinet/in.h>
 #include <arpa/inet.h>	/* inet_aton */
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern int verbose;
 #ifdef NODEBUG
 #define DBG(...) do { } while (0)
@@ -61,48 +65,49 @@ extern int verbose;
         } } while(0)
 #endif
 
-/*
- * descriptor of an application.
+/**
+ * @struct app
+ * @brief Sub-application plugin descriptor with lifecycle callbacks.
  */
 struct app {
-	int (*init)(void);
-	int (*parse)(int *argc, char *argv[]);
-	int (*start)(void);
-	int (*end)(void);
-	void *data;	/* pointer to private data */
+	int (*init)(void);                  /**< Initializer callback */
+	int (*parse)(int *argc, char *argv[]); /**< Command-line option parsing */
+	int (*start)(void);                 /**< Application startup */
+	int (*end)(void);                   /**< Application teardown */
+	void *data;                         /**< Pointer to app private state */
 };
 
-/*
- * callback in 'prepare' mode returns 1 if fd active.
- * callback in 'run' mode returns 0 if ok, 1 if dying.
- *	destruction must be done in the callback itself
+/**
+ * @struct cb_args
+ * @brief Callback context passed to select() dispatch handlers.
  */
 struct cb_args {
-	struct timeval now;
-	struct timeval due;	/* earliest due descriptor */
-	fd_set *r;
-	fd_set *w;
-	int maxfd;
-	int run;	/* 0: prepare select, 1: run */
+	struct timeval now;   /**< Current wall-clock timestamp */
+	struct timeval due;   /**< Earliest due descriptor / timer */
+	fd_set *r;            /**< Read file descriptor set */
+	fd_set *w;            /**< Write file descriptor set */
+	int maxfd;            /**< Highest active file descriptor number */
+	int run;              /**< Dispatch mode (0 = prepare select, 1 = handle ready descriptors) */
 };
 
+/** @brief Session event handler function pointer type */
 typedef int (*cb_fn)(void *sess, struct cb_args *a);
+
+/**
+ * @struct sess
+ * @brief Base session tracking active descriptor and event callback in the event loop.
+ */
 struct sess {
-	struct sess *next;
-	struct app *app;	/* parent application */
-	cb_fn	cb;
-	void *arg;	/* identifier */
-	int fd;
+	struct sess *next;  /**< Linked list successor */
+	struct app *app;    /**< Parent application plugin */
+	cb_fn	cb;         /**< Dispatch callback */
+	void *arg;          /**< Arbitrary user argument/tag */
+	int fd;             /**< Watched file descriptor */
 };
 
-/*
- * All sessions should start with a 'struct sess'
- */
-
-/*
- * my_args contains all the arguments for the program
- * The current app is me->app
- * The current session is me->sess;
+/**
+ * @struct my_args
+ * @brief Global application state and session registry.
  */
 struct my_args {
 	struct app **all_apps;	// array of all applications
@@ -114,18 +119,43 @@ struct my_args {
 };
 extern struct my_args __me;
 
-/*
- * Constructor for a new session
+/**
+ * @brief Allocates and registers a new event session in the global loop.
+ * @param size Memory allocation size for session struct.
+ * @param fd File descriptor to monitor.
+ * @param cb Event callback function.
+ * @param arg User context pointer.
+ * @return Allocated session pointer.
  */
 void *new_sess(int size, int fd, cb_fn cb, void *arg);
 
-/* add a millisecond value to a timer */
+/**
+ * @brief Adds milliseconds to a timeval struct.
+ * @param src Starting timeval.
+ * @param ms Milliseconds to add.
+ * @param dst Output destination timeval.
+ */
 void timeradd_ms(const struct timeval *src, int ms, struct timeval *dst);
-/* set dst to the min of the two */
+
+/**
+ * @brief Sets dst timeval to the minimum of dst and cur.
+ * @param dst Target timeval to update.
+ * @param cur Candidate timeval.
+ */
 void timersetmin(struct timeval *dst, const struct timeval *cur);
-/* returns true if dst is set and <= 'now' */
+
+/**
+ * @brief Checks if timer is armed and expired relative to now.
+ * @param dst Timer timestamp.
+ * @param now Current timestamp.
+ * @return Non-zero if expired, 0 otherwise.
+ */
 int timerdue(const struct timeval *dst, const struct timeval *now);
 
 extern int bytesperchar;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _MYTS_H_ */

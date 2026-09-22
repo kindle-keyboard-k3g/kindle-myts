@@ -41,50 +41,89 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @struct entry
+ * @brief Key-value pair in a configuration file section.
+ */
 struct entry {
-	struct entry *next;
-	char *key;		/* pointer to key name */
-	char *value;		/* pointer to key value */
-	uint16_t len1;	/* metadata */
+	struct entry *next; /**< Linked list pointer to next key-value entry */
+	char *key;          /**< Pointer to null-terminated key name */
+	char *value;        /**< Pointer to null-terminated key value */
+	uint16_t len1;      /**< Metadata length */
 };
 
 struct section;
 struct config;
 
-/*
- * various accessors.
- * As a special case, if the path in cfg_read starts with a newline,
- * then we consider it an immediate string.
+/**
+ * @brief Loads a configuration file (or immediate string if path starts with '\n').
+ * @param path File path or immediate string.
+ * @param base Base path for relative include statements.
+ * @param old Existing configuration object to extend, or NULL to allocate new.
+ * @return Loaded struct config pointer, or NULL on failure.
  */
-
-/* load a config file and create or extend a config */
 struct config * cfg_read(const char *path, const char *base,
 	struct config *old);
-void cfg_free(struct config *pdb) ;
-/* find a specific section. If name == NULL, return the first one,
- * then if config == NULL name is interpreted as a section and
- * we return the next entry. So iteration is
- *	for (s = cfg_find_section(cfg, NULL); s; s = cfg_find_section(NULL, (void *)s) ) 
- */
-struct section *cfg_find_section(struct config *, const char *name) ;
 
-/* find an entry. If key == NULL return the first entry,
- * then iteration can be explicit as the struct is public
+/**
+ * @brief Frees configuration database and all nested sections and entries.
+ * @param pdb Configuration pointer to release.
+ */
+void cfg_free(struct config *pdb) ;
+
+/**
+ * @brief Finds a section by name, or iterates sections.
+ * @param cfg Configuration context.
+ * @param name Section name (case-insensitive), or NULL to start iteration.
+ * @return Pointer to struct section, or NULL if not found.
+ */
+struct section *cfg_find_section(struct config *cfg, const char *name) ;
+
+/**
+ * @brief Finds an entry by key name in the given section.
+ * @param s Section pointer.
+ * @param key Key name to look up, or NULL to retrieve first entry.
+ * @return Const pointer to entry struct, or NULL if not found.
  */
 const struct entry *cfg_find_entry(const struct section *s, const char *key) ;
 
-/*
- * find the value for given cfg/section. If cfg == NULL sec is
- * the pointer to the section.
+/**
+ * @brief Retrieves value string for given section name (or section pointer) and key.
+ * @param cfg Configuration context (or NULL if sec is struct section*).
+ * @param sec Section name or section pointer.
+ * @param key Key name.
+ * @return String value, or NULL if not found.
  */
-const char *cfg_find_val(struct config *, const char *sec, const char *key);
-const char *cfg_section_name(const struct section *);
+const char *cfg_find_val(struct config *cfg, const char *sec, const char *key);
 
-/*
- * skipws() and trimws() are generic string functions useful in other
- * places as well.
+/**
+ * @brief Returns name string of given section.
+ * @param s Section pointer.
+ * @return Section name string.
+ */
+const char *cfg_section_name(const struct section *s);
+
+/**
+ * @brief Advances pointer past ASCII whitespace characters.
+ * @param p Pointer to input string.
+ * @return First non-whitespace character pointer.
  */
 char *skipws(char *p);
+
+/**
+ * @brief Trims trailing whitespace characters before end pointer in place.
+ * @param s Pointer to start of string.
+ * @param end Pointer to end of string.
+ * @return Trimmed null-terminated string pointer.
+ */
 char *trimws(char *s, char *end);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _CONFIG_H_ */

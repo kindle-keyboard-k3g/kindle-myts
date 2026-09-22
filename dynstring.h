@@ -46,53 +46,110 @@
 
 #ifndef __DYNSTRING_H
 #define __DYNSTRING_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @typedef dynstr
+ * @brief Opaque handle to an extensible heap-allocated dynamic buffer structure.
+ */
 typedef struct __dynstr * dynstr;
 
-/* sprintf and append bytes to a dynamic string */
+/**
+ * @brief Formats and appends data to dynamic string like sprintf.
+ * @param s Address of pointer to dynstr.
+ * @param fmt Printf-style format string.
+ * @return Number of characters appended, or negative integer on error.
+ */
 int dsprintf(dynstr *s, const char *fmt, ...);
 
-/* append a chunk of bytes to the structure */
+/**
+ * @brief Appends raw binary or text data chunk to dynamic string.
+ * @param s Address of pointer to dynstr.
+ * @param d Pointer to source byte buffer.
+ * @param len Number of bytes to append.
+ * @return Updated length of buffer, or negative on error.
+ */
 int ds_append(dynstr *s, const void *d, int len);
 
-/* truncate or extend to the desired size */
+/**
+ * @brief Truncates or extends buffer to specified length.
+ * @param s Address of pointer to dynstr.
+ * @param desired_size Desired length in bytes.
+ * @return 0 on success.
+ */
 int ds_truncate(dynstr *s, int desired_size);
 
-/* Adjust the array so that it includes an entry of index i
- * and size recsize (i.e. at least recsize*[i+1] bytes)
+/**
+ * @brief Adjusts dynamic array buffer capacity to hold element at index i of size recsize.
+ * @param s Address of pointer to dynstr.
+ * @param i Zero-based index of target element.
+ * @param recsize Size of each record/element in bytes.
+ * @return 0 on success.
  */
 int ds_adjust(dynstr *s, int i, int recsize);
 
-/* Return a pointer to the content (or to "" if empty).
- * The function never returns NULL; use ds_len() to tell if the
- * block of memory is not allocated or otherwise empty.
+/**
+ * @brief Returns non-null pointer to character data inside buffer.
+ * @param s Dynamic string handle.
+ * @return Pointer to buffer contents (or "" if empty). Never returns NULL.
  */
 const char *ds_data(dynstr s);
 
-/* return the length in bytes of the content */
-int ds_len(dynstr s);		// returns the string lenght
+/**
+ * @brief Returns current active content length in bytes.
+ * @param s Dynamic string handle.
+ * @return String length in bytes.
+ */
+int ds_len(dynstr s);
 
-/* return the total size of the allocated buffer */
-int ds_size(dynstr s);		// returns the buffer size
+/**
+ * @brief Returns total allocated capacity of buffer in bytes.
+ * @param s Dynamic string handle.
+ * @return Allocated size in bytes.
+ */
+int ds_size(dynstr s);
 
-/* remove the initial n bytes from the string, shifting content up */
-int ds_shift(dynstr s, int n);		// returns the string lenght
+/**
+ * @brief Shifts buffer content left by removing initial n bytes.
+ * @param s Dynamic string handle.
+ * @param n Number of bytes to drop from the front.
+ * @return Resulting buffer length.
+ */
+int ds_shift(dynstr s, int n);
 
-/* reset the buffer to the empty string, without deallocating */
-void ds_reset(dynstr s);	// resets the buffer to empty string
+/**
+ * @brief Resets dynamic string to zero length without freeing memory buffer.
+ * @param s Dynamic string handle.
+ */
+void ds_reset(dynstr s);
 
-/* Create a dynstr with given initial size.
- * Note that the 'used' field is set to 0 so ds_len will return 0
- * Normally you don't need to call ds_create unless you want
- * to set special properties on the string such as bounded size.
+/**
+ * @brief Creates dynamic string with preallocated initial capacity.
+ * @param len Initial buffer size in bytes.
+ * @return Newly created dynstr handle.
  */
 dynstr ds_create(int len);
 
-/*
- * Create a dynamic string that references an external buffer.
- * The string is readonly.
+/**
+ * @brief Creates a read-only dynamic string wrapper referencing external buffer.
+ * @param base Pointer to constant memory.
+ * @param len Number of bytes referenced.
+ * @return Read-only dynstr handle.
  */
 dynstr ds_ref(const char *base, int len);
 
-/* frees the space used. Returns NULL for convenience */
-void *ds_free(dynstr s);		// frees the space
+/**
+ * @brief Deallocates dynamic string buffer and metadata.
+ * @param s Dynamic string handle to free.
+ * @return Always returns NULL for convenient assignment.
+ */
+void *ds_free(dynstr s);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif	/* __DYNSTRING_H */
