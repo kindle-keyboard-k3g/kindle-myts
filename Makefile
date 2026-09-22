@@ -58,15 +58,38 @@ myts.zip: $(PUB) myts-ng
 	rm -rf myts-bundle
 
 clean:
-	rm -rf *lll myts myts-ng myts-dbg myts-ng-dbg *.o *.core *.table myts.zip tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay tests/*.o
+	rm -rf *lll myts myts-ng myts-dbg myts-ng-dbg *.o *.core *.table myts.zip tools/matrix tools/matrix-kindle tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay tests/*.o
 
 TEST_BINS = tests/test_dynstring tests/test_config tests/test_pixop tests/test_raii tests/test_buffers tests/test_pixmap tests/test_modern_config tests/test_ansi tests/test_event_loop tests/test_eink_display tests/test_font_renderer tests/test_terminal_session tests/test_input_manager tests/test_application tests/test_logger tests/test_metrics tests/test_debug_overlay
+
+# Kindle ARM32 Toolchain Configuration
+KINDLE_MUSL_CC ?= $(HOME)/.local/toolchains/armv6-linux-musleabi-cross/bin/armv6-linux-musleabi-gcc
+KINDLE_MUSL_CXX ?= $(HOME)/.local/toolchains/armv6-linux-musleabi-cross/bin/armv6-linux-musleabi-g++
+KINDLE_MUSL_STRIP ?= $(HOME)/.local/toolchains/armv6-linux-musleabi-cross/bin/armv6-linux-musleabi-strip
+KINDLE_CFLAGS ?= -Os -Wall -Wextra -march=armv6j -mtune=arm1136jf-s -mfpu=vfp -mfloat-abi=softfp -static
+KINDLE_CXXFLAGS ?= -std=c++17 -Os -Wall -Wextra -march=armv6j -mtune=arm1136jf-s -mfpu=vfp -mfloat-abi=softfp -fno-exceptions -fno-rtti -static
+KINDLE_CXXFLAGS_DEBUG ?= -std=c++17 -Wall -Wextra -g3 -O0 -march=armv6j -mtune=arm1136jf-s -mfpu=vfp -mfloat-abi=softfp -DDEBUG -UNDEBUG -fno-exceptions -fno-rtti -static
 
 myts-ng: main.cpp
 	$(CXX) $(CXXFLAGS) -I. -o $@ $^
 
 myts-ng-dbg: main.cpp
 	$(CXX) $(CXXFLAGS_DEBUG) -I. -o $@ $^
+
+myts-ng-kindle: main.cpp
+	$(KINDLE_MUSL_CXX) $(KINDLE_CXXFLAGS) -I. -o $@ $^
+	@if [ -x "$(KINDLE_MUSL_STRIP)" ]; then $(KINDLE_MUSL_STRIP) $@; fi
+
+myts-ng-kindle-dbg: main.cpp
+	$(KINDLE_MUSL_CXX) $(KINDLE_CXXFLAGS_DEBUG) -I. -o $@ $^
+
+tools/matrix: tools/matrix.c
+	$(CC) $(CFLAGS) -o $@ $^
+
+tools/matrix-kindle: tools/matrix.c
+	$(KINDLE_MUSL_CC) $(KINDLE_CFLAGS) -o $@ $^
+	@if [ -x "$(KINDLE_MUSL_STRIP)" ]; then $(KINDLE_MUSL_STRIP) $@; fi
+
 
 tests/test_dynstring: tests/test_dynstring.c dynstring.c
 	$(CC) $(TEST_CFLAGS) -o $@ $^

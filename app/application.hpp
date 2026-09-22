@@ -204,6 +204,13 @@ public:
             return;
         }
 
+        // Wipe full screen on initial startup to clear prior UI / book content
+        uint8_t* dst = driver_.surface_data();
+        if (dst != nullptr && canvas_.data() != nullptr) {
+            std::memcpy(dst, canvas_.data(), canvas_.size());
+        }
+        display_.refresh_full();
+
         render_frame();
 
         // Register PTY master read callback
