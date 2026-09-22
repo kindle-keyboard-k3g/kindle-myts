@@ -20,6 +20,8 @@
 #include <linux/input.h>
 #include <string_view>
 #include <cstring>
+#include <algorithm>
+#include <vector>
 #include <unistd.h>
 
 namespace myts {
@@ -158,12 +160,27 @@ public:
 
     /**
      * @brief Renders current terminal state to display surface and triggers refresh.
+     *
+     * Computes a minimal dirty rectangle from changed rows so only the affected
+     * screen strip is sent to the e-ink controller, eliminating per-keystroke
+     * full GC16 flashes.
      */
     void render_frame() {
-        session_.render(canvas_, font_, /*show_cursor=*/true);
+        auto dirty_rows = session_.take_dirty_rows();
+        graphics::Rect dirty = compute_dirty_rect(dirty_rows);
+        if (dirty.is_empty()) { return; }
+
+        session_.render(canvas_, font_, /*show_cursor=*/true, &dirty_rows);
 
         if (debug_cfg_.enable_overlay) {
             overlay_.render(canvas_, font_, metrics_.snapshot(), 0, 0);
+            int oh = font_.glyph_height() * 2;
+            graphics::Rect odirty{0, 0, driver_.width(), oh};
+            int ux1 = std::min(dirty.x, odirty.x);
+            int uy1 = std::min(dirty.y, odirty.y);
+            int ux2 = std::max(dirty.x + dirty.width, odirty.x + odirty.width);
+            int uy2 = std::max(dirty.y + dirty.height, odirty.y + odirty.height);
+            dirty = graphics::Rect{ux1, uy1, ux2 - ux1, uy2 - uy1};
         }
 
         uint8_t* dst = driver_.surface_data();
@@ -171,9 +188,9 @@ public:
             std::memcpy(dst, canvas_.data(), canvas_.size());
         }
 
-        graphics::Rect dirty(0, 0, driver_.width(), driver_.height());
         display_.mark_dirty(dirty);
-        metrics_.record_refresh(dirty, /*full_flash=*/false);
+        bool was_full = (display_.partial_updates_count() + 1 >= display_.refresh_config().partial_limit);
+        metrics_.record_refresh(dirty, was_full);
         display_.flush();
     }
 
@@ -183,6 +200,7 @@ public:
      */
     void run(const char* shell = "/bin/sh") {
         if (!session_.spawn_pty(shell)) {
+            MYTS_LOG_ERROR("APP", "Failed to spawn PTY shell");
             return;
         }
 
@@ -196,14 +214,48 @@ public:
                 feed_terminal_output(std::string_view(buf, static_cast<size_t>(bytes)));
                 render_frame();
             } else if (bytes <= 0) {
+                MYTS_LOG_INFO("PTY", "PTY closed or EOF reached");
                 loop_.stop();
             }
         });
+
+        // Register Linux input event handlers (/dev/input/event0, event1, event2)
+        const char* const input_devs[] = {
+            "/dev/input/event0", // Keyboard
+            "/dev/input/event1", // Five-way controller
+            "/dev/input/event2"  // Volume keys
+        };
+
+        for (const char* dev_path : input_devs) {
+            int input_fd = ::open(dev_path, O_RDONLY | O_NONBLOCK);
+            if (input_fd >= 0) {
+                MYTS_LOG_INFO("INPUT", dev_path);
+                loop_.register_read(input_fd, [this](int fd) {
+                    struct input_event ev{};
+                    while (::read(fd, &ev, sizeof(ev)) == sizeof(ev)) {
+                        handle_input_event(ev);
+                    }
+                });
+            }
+        }
 
         loop_.run();
     }
 
 private:
+    [[nodiscard]] graphics::Rect compute_dirty_rect(const std::vector<bool>& dirty_rows) const noexcept {
+        int gh = font_.glyph_height();
+        int first = -1;
+        int last = -1;
+        for (int r = 0; r < static_cast<int>(dirty_rows.size()); ++r) {
+            if (!dirty_rows[static_cast<size_t>(r)]) { continue; }
+            if (first < 0) { first = r; }
+            last = r;
+        }
+        if (first < 0) { return graphics::Rect{0, 0, 0, 0}; }
+        return graphics::Rect{0, first * gh, driver_.width(), (last - first + 1) * gh};
+    }
+
     display::HardwareEinkDriver driver_;
     graphics::EinkDisplay display_;
     graphics::FontRenderer font_;

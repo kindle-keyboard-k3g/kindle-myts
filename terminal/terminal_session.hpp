@@ -45,6 +45,7 @@ public:
           cursor_row_(0),
           cursor_col_(0),
           cells_(static_cast<size_t>(rows_ * cols_), Cell{' ', 0}),
+          dirty_rows_(static_cast<size_t>(rows_ > 0 ? rows_ : 24), true),
           parser_(*this) {}
 
     ~TerminalSession() override = default;
@@ -64,6 +65,19 @@ public:
      * @brief Total number of columns in the terminal grid.
      */
     [[nodiscard]] int cols() const noexcept { return cols_; }
+
+    /**
+     * @brief Returns and resets the per-row dirty flags.
+     *
+     * Row is true if any cell in that row changed since the last call.
+     * Caller uses this to compute a minimal refresh rectangle.
+     */
+    [[nodiscard]] std::vector<bool> take_dirty_rows() noexcept {
+        std::vector<bool> result(static_cast<size_t>(rows_), false);
+        result.swap(dirty_rows_);
+        dirty_rows_.assign(static_cast<size_t>(rows_), false);
+        return result;
+    }
 
     /**
      * @brief Current cursor row (0-indexed).
@@ -118,8 +132,10 @@ public:
         if (target_row >= rows_) target_row = rows_ - 1;
         if (target_col >= cols_) target_col = cols_ - 1;
 
+        mark_row_dirty(cursor_row_); // erase old cursor position
         cursor_row_ = target_row;
         cursor_col_ = target_col;
+        mark_row_dirty(cursor_row_);
     }
 
     /**
@@ -133,16 +149,19 @@ public:
             }
             cursor_row_ = 0;
             cursor_col_ = 0;
+            for (int r = 0; r < rows_; ++r) { mark_row_dirty(r); }
         } else if (mode == 0) {
             int start_idx = cursor_row_ * cols_ + cursor_col_;
             for (size_t i = static_cast<size_t>(start_idx); i < cells_.size(); ++i) {
                 cells_[i] = Cell{' ', 0};
             }
+            for (int r = cursor_row_; r < rows_; ++r) { mark_row_dirty(r); }
         } else if (mode == 1) {
             int end_idx = cursor_row_ * cols_ + cursor_col_;
             for (int i = 0; i <= end_idx && static_cast<size_t>(i) < cells_.size(); ++i) {
                 cells_[static_cast<size_t>(i)] = Cell{' ', 0};
             }
+            for (int r = 0; r <= cursor_row_; ++r) { mark_row_dirty(r); }
         }
     }
 
@@ -185,6 +204,7 @@ public:
                 }
                 size_t idx = static_cast<size_t>(cursor_row_ * cols_ + cursor_col_);
                 cells_[idx] = Cell{c, 0};
+                mark_row_dirty(cursor_row_);
                 ++cursor_col_;
             }
             break;
@@ -255,17 +275,24 @@ public:
     }
 
     /**
-     * @brief Renders the entire terminal grid into a 4bpp raster surface.
+     * @brief Renders terminal rows into a 4bpp raster surface.
      * @param dst Destination pixmap.
      * @param font FontRenderer instance for glyph rasterization.
      * @param show_cursor If true, draws cursor at current position.
+     * @param dirty_rows If non-null, only rows marked true are redrawn.
      */
     void render(graphics::OwnedPixmap& dst, const graphics::FontRenderer& font,
-                bool show_cursor = true) const {
+                bool show_cursor = true,
+                const std::vector<bool>* dirty_rows = nullptr) const {
         int gw = font.glyph_width();
         int gh = font.glyph_height();
 
         for (int r = 0; r < rows_; ++r) {
+            if (dirty_rows != nullptr &&
+                r < static_cast<int>(dirty_rows->size()) &&
+                !(*dirty_rows)[static_cast<size_t>(r)]) {
+                continue;
+            }
             int y = r * gh;
             for (int c = 0; c < cols_; ++c) {
                 int x = c * gw;
@@ -282,6 +309,12 @@ public:
     }
 
 private:
+    void mark_row_dirty(int row) noexcept {
+        if (row >= 0 && row < rows_) {
+            dirty_rows_[static_cast<size_t>(row)] = true;
+        }
+    }
+
     void advance_row() {
         if (cursor_row_ + 1 < rows_) {
             ++cursor_row_;
@@ -300,6 +333,7 @@ private:
         for (int c = 0; c < cols_; ++c) {
             cells_[static_cast<size_t>((rows_ - 1) * cols_ + c)] = Cell{' ', 0};
         }
+        for (int r = 0; r < rows_; ++r) { mark_row_dirty(r); }
     }
 
     int rows_{24};
@@ -307,6 +341,7 @@ private:
     int cursor_row_{0};
     int cursor_col_{0};
     std::vector<Cell> cells_;
+    std::vector<bool> dirty_rows_;
     AnsiParser parser_;
     core::UniqueFd pty_master_;
     pid_t child_pid_{-1};

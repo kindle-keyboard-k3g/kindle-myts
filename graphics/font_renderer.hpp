@@ -174,6 +174,42 @@ public:
         return true;
     }
 
+    /**
+     * @brief Draws a glyph with synthetic bold via horizontal bit-OR smearing.
+     *
+     * Each foreground pixel's right neighbor is set: `row |= (row >> 1)`.
+     * Works for 8-pixel-wide glyphs; wider fonts need cross-byte carry.
+     * @param dst Destination OwnedPixmap.
+     * @param x Top-left column.
+     * @param y Top-left row.
+     * @param codepoint Unicode codepoint.
+     * @param fg Foreground 4-bit gray level.
+     * @param bg Background 4-bit gray level.
+     * @return true if glyph was drawn.
+     */
+    bool draw_char_bold(OwnedPixmap& dst, int x, int y, uint32_t codepoint,
+                        uint8_t fg = 0x00, uint8_t bg = 0x0F) const noexcept {
+        GlyphBitmap glyph = get_glyph(codepoint);
+        if (glyph.data == nullptr) {
+            return false;
+        }
+
+        for (int r = 0; r < height_; ++r) {
+            int dst_y = y + r;
+            const uint8_t* row_bytes = glyph.data + (r * bytes_per_row_);
+
+            for (int c = 0; c < width_; ++c) {
+                int byte_idx = c / 8;
+                int bit_idx = 7 - (c % 8);
+                uint8_t bold_byte = static_cast<uint8_t>(row_bytes[byte_idx] | (row_bytes[byte_idx] >> 1));
+                bool is_fg = (bold_byte & (1 << bit_idx)) != 0;
+                dst.set_pixel(x + c, dst_y, is_fg ? fg : bg);
+            }
+        }
+
+        return true;
+    }
+
 private:
     static constexpr int hex_nibble(char c) noexcept {
         if (c >= '0' && c <= '9') return c - '0';

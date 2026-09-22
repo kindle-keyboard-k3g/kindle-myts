@@ -78,8 +78,41 @@ static int test_font_renderer_load_hex_file() {
     return 0;
 }
 
+static int test_font_renderer_draw_char_bold() {
+    FontRenderer font(8, 12);
+
+    // Glyph 0x41 row 3 = 0x3c (00111100)
+    // Bold via row |= (row >> 1): 0x3c | 0x1e = 0x3e (00111110)
+    // Col 1 becomes fg (was bg in normal render)
+    const char* sample_hex = "0041:0000003c66667e6666000000\n";
+    ASSERT_TRUE(font.load_hex_data(sample_hex));
+
+    OwnedPixmap canvas(16, 16);
+    canvas.clear(0xFF);
+
+    bool drawn = font.draw_char_bold(canvas, 0, 0, 0x41, 0x00, 0x0F);
+    ASSERT_TRUE(drawn);
+
+    // Normal 'A' row 3 col 1 is bg (0x0F); bold should make it fg (0x00)
+    // 0x3c = 00111100; bold = 0x3c | 0x1e = 0x3e = 00111110
+    // col 1 (bit 6): 0x3e & 0x40 = 0 -> still bg; col 2 (bit 5): 0x3e & 0x20 = 1 -> fg
+    // Actually: 0x3e = 0011 1110
+    // col 0=0 (bg), col 1=0 (bg), col 2=1(fg), col 3=1(fg), col 4=1(fg), col 5=1(fg), col 6=1(fg), col 7=0(bg)
+    // Bold adds col 6 which was bg in normal (0x3c col6=0 -> 0x3e col6=1)
+    ASSERT_EQ(canvas.get_pixel(6, 3), 0x00); // col 6 is now fg in bold
+    ASSERT_EQ(canvas.get_pixel(7, 3), 0x0F); // col 7 still bg
+    ASSERT_EQ(canvas.get_pixel(2, 3), 0x00); // col 2 still fg
+
+    // Missing glyph returns false
+    bool not_drawn = font.draw_char_bold(canvas, 0, 0, 0x99, 0x00, 0x0F);
+    ASSERT_FALSE(not_drawn);
+
+    return 0;
+}
+
 TEST_MAIN_BEGIN()
     RUN_TEST(test_font_renderer_load_hex_string);
     RUN_TEST(test_font_renderer_draw_char);
     RUN_TEST(test_font_renderer_load_hex_file);
+    RUN_TEST(test_font_renderer_draw_char_bold);
 TEST_MAIN_END()
